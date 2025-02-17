@@ -10,21 +10,20 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # One video chunk of 1s.
-    resnet_T = 1
-    slowfast_T = 32
+    video_chunk = 1
 
     # Load the dataset.
     inputs = [
         [a[0].to(device), a[1].to(device)] if type(a) == list else a.to(device)
-        for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', slowfast_T, resnet_T))))
+        for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk))))
     ]
 
     # Instantiate sub-networks.
     dual_attention = {}
     dual_attention['backbone'] = Backbone().to(device)
     dual_attention['fc1'] = FC1().to(device)
-    dual_attention['str_B'] = Group1DCNN(slowfast_T).to(device)
-    dual_attention['str_A'] = Simple1DCNN(resnet_T).to(device)
+    dual_attention['str_B'] = Group1DCNN().to(device)
+    dual_attention['str_A'] = Simple1DCNN().to(device)
 
     for net in dual_attention.values():
         net.eval()
@@ -32,7 +31,7 @@ def main():
     # Forward pass.
     video_content_features = dual_attention['backbone'](inputs)
     downsampled_features = dual_attention['fc1'](video_content_features)
-    temporal_reasoning_features = dual_attention['str'](downsampled_features)
+    temporal_reasoning_features = dual_attention['str_A'](downsampled_features[None, :])
 
     print(temporal_reasoning_features.shape)
     

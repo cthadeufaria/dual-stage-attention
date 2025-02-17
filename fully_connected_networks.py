@@ -3,7 +3,7 @@ import torch.nn as nn
 
 class FC1(nn.Module):
     """
-    Implementation of the 1st fully connected layer for the dual-stage attention model.
+    Implements the 1st fully connected layer for the dual-stage attention model.
     Ref.: https://pytorch.org/tutorials/recipes/recipes/defining_a_neural_network.html
     """
     def __init__(self):
@@ -16,7 +16,7 @@ class FC1(nn.Module):
 
 class FC2(nn.Module):
     """
-    Implementation of the 2nd fully connected layer for the dual-stage attention model.
+    Implements the 2nd fully connected layer for the dual-stage attention model.
     Ref.: https://pytorch.org/tutorials/recipes/recipes/defining_a_neural_network.html
     """
     def __init__(self):
@@ -37,7 +37,7 @@ class FC2(nn.Module):
 
 class FC3(nn.Module):
     """
-    Implementation of the 3rd fully connected layer for the dual-stage attention model.
+    Implements the 3rd fully connected layer for the dual-stage attention model.
     Ref.: https://pytorch.org/tutorials/recipes/recipes/defining_a_neural_network.html
     """
     def __init__(self):
@@ -56,7 +56,7 @@ class FC3(nn.Module):
 
 class FC4(nn.Module):
     """
-    Implementation of the 4th fully connected layer for the dual-stage attention model.
+    Implements the 4th fully connected layer for the dual-stage attention model.
     Ref.: https://pytorch.org/tutorials/recipes/recipes/defining_a_neural_network.html
     """
     def __init__(self):
@@ -77,7 +77,7 @@ class FC4(nn.Module):
 
 class FC5(nn.Module):
     """
-    Implementation of the 5th fully connected layer for the dual-stage attention model.
+    Implements the 5th fully connected layer for the dual-stage attention model.
     Ref.: https://pytorch.org/tutorials/recipes/recipes/defining_a_neural_network.html
     """
     def __init__(self):

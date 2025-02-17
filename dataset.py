@@ -71,11 +71,12 @@ class PackPathway(nn.Module):
             ).long(),
         )
         frame_list = [slow_pathway, fast_pathway]
+        
         return frame_list
 
 
 class VideoDataset(Dataset):
-    def __init__(self, root_dir, slowfast_T, resnet_T):
+    def __init__(self, root_dir, timestep):
         """
         Implementation of Dataset class for LIVE NETFLIX - II dataset.
         More info found @ http://live.ece.utexas.edu/research/LIVE_NFLX_II/live_nflx_plus.html
@@ -90,16 +91,14 @@ class VideoDataset(Dataset):
             os.path.join(self.root_dir, 'Dataset_Information/Pkl_Files/*.pkl')
         )
         self.annotations = self.load_annotations(pkl_files)
-        self.T = [
-            slowfast_T,
-            resnet_T
-        ]
+        self.T = timestep
 
     def load_annotations(self, pkl_files):
         annotations = []
         for file in pkl_files:
             with open(file, 'rb') as f:
                 annotations.append(pickle.load(f, encoding='latin1'))
+                
         return annotations
 
     def __len__(self):
@@ -109,19 +108,18 @@ class VideoDataset(Dataset):
         downsample_size = (224, 224)
         mean = [0.45, 0.45, 0.45] # TODO: check if normalization parameters are correct.
         std = [0.225, 0.225, 0.225]
-
-        # clip_length = self.annotations[idx]['video_duration_sec']
-        clip_length = 1 # Arbitrary small length to make Dataset run in slow PC.
+        slowfast_sample_size = 32
+        resnet_sample_size = 1
 
         video_path = os.path.join(self.root_dir, 'assets_mp4_individual', self.annotations[idx]['distorted_mp4_video'])
         video = EncodedVideo.from_path(video_path)
         video_data = [
-            video.get_clip(start_sec=0, end_sec=clip_length),
-            video.get_clip(start_sec=0, end_sec=clip_length)
+            video.get_clip(start_sec=0, end_sec=self.T),
+            video.get_clip(start_sec=0, end_sec=self.T)
         ]
 
-        slowfast_transform = self.transforms[0](clip_length * self.T[0], downsample_size, mean, std)
-        resnet_transform = self.transforms[1](mean, std, clip_length * self.T[1])
+        slowfast_transform = self.transforms[0](self.T * slowfast_sample_size, downsample_size, mean, std)
+        resnet_transform = self.transforms[1](mean, std, self.T * resnet_sample_size)
 
         slowfast_transform(video_data[0])
         resnet_transform(video_data[1])
