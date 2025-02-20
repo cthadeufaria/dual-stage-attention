@@ -13,13 +13,17 @@ TODO:
     a. get T from Dataset 'inputs' if possible. [ok]
     b. update 'main' to handle T. [ok]
     c. fix global average pooling from backbone. [ok]
-    d. fix fully connected networks to use T correctly. [ ]
-    e. fix short-time regression module to use T correctly. [ ]
+    d. fix fully connected networks to use T correctly. [ok]
+    e. fix short-time regression module to use T correctly. [ok]
 
-2. Update Dataset class to get QoS features.
+2. Create Long-Time Temporal Regression Module. [ ]
 
-3. Structure TODOs in the code here to plan tasks.
+3. Create Cross-Feature Attention Module. [ ]
 
-4. Update code to get all video chunks from all videos from the Dataset. Now it only takes the 1st chunk from the 1st video.
+4. Update Dataset class to get QoS features. [ ]
+
+- Structure TODOs in the code here to plan tasks.
+
+- Update code to get continuous video chunks from all videos from the Dataset.
 
 - For training, see https://pytorch.org/blog/how-to-train-state-of-the-art-models-using-torchvision-latest-primitives/
