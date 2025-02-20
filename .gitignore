@@ -1,5 +1,5 @@
 # Specific for this repo
-datasets/
+datasets/LIVE_NFLX_Plus
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
