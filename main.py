@@ -29,7 +29,7 @@ def main():
     dual_attention['fc1'] = FC1().to(device)
     dual_attention['str_B'] = Group1DCNN().to(device)
     dual_attention['str_A'] = Simple1DCNN().to(device)
-    dual_attention['ltr_A'] = LongTimeRegression().to(device)
+    dual_attention['ltr_A'] = LongTimeRegression(6).to(device)
 
     for net in dual_attention.values():
         net.eval()
