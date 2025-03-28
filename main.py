@@ -11,8 +11,15 @@ def main():
     """
     Install PyTorch with ROCm Compute Platform using info @ https://pytorch.org/get-started/locally/.
     HIP and ROCm installation instructions for cuda impl. @ https://rocm.docs.amd.com/projects/install-on-linux/en/latest/install/quick-start.html.
-    """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    Unsupportted GPU Github issue @ https://github.com/ROCm/rocBLAS/issues/1352.
+    GPU support and compatibility matrices @
+    https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html#linux-supported-gpus
+    https://rocm.docs.amd.com/projects/radeon/en/latest/docs/compatibility/native_linux/native_linux_compatibility.html
+    https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html#architecture-support-compatibility-matrix
+    """ 
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # TODO: try to install rocm 5.3 to support compatibility with gfx1012 and AMD ATI Radeon RX 5500/5500M / Pro 5500M.
+    device = torch.device('cpu')
+    print(f"Device: {device}")
     
     # Define video chunk size.
     video_chunk = 1 # seconds
@@ -40,6 +47,9 @@ def main():
     temporal_reasoning_features = dual_attention['str_A'](downsampled_features[None, :])
     attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
 
+    print(video_content_features.shape)
+    print(downsampled_features.shape)
+    print(temporal_reasoning_features.shape)
     print(attention_map.shape)
     
 
