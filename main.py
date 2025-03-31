@@ -50,6 +50,9 @@ def main():
     temporal_reasoning_features = dual_attention['str_A'](downsampled_features[None, :])
     attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
 
+    qos_features = inputs[1] # TODO: implement QoS feature extraction.
+    qos_features = qos_features[None, :].to(device)
+
     print(video_content_features.shape)
     print(downsampled_features.shape)
     print(temporal_reasoning_features.shape)
