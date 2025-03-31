@@ -13,7 +13,6 @@ class FC1(nn.Module):
     def forward(self, x):
         return self.layer1(x)
 
-
 class FC2(nn.Module):
     """
     Implements the 2nd fully connected layer for the dual-stage attention model.
@@ -21,7 +20,7 @@ class FC2(nn.Module):
     """
     def __init__(self):
         super(FC2, self).__init__()
-        self.layer1 = nn.Linear(7936, 180)
+        self.layer1 = nn.Linear(360, 180)
         self.relu = nn.ReLU()
         self.layer2 = nn.Linear(180, 1)
         self.sigmoid = nn.Sigmoid()
@@ -33,7 +32,6 @@ class FC2(nn.Module):
         x = self.sigmoid(x)
 
         return x
-
 
 class FC3(nn.Module):
     """
@@ -53,7 +51,6 @@ class FC3(nn.Module):
 
         return x
 
-
 class FC4(nn.Module):
     """
     Implements the 4th fully connected layer for the dual-stage attention model.
@@ -61,7 +58,7 @@ class FC4(nn.Module):
     """
     def __init__(self):
         super(FC4, self).__init__()
-        self.layer1 = nn.Linear(7936, 180)
+        self.layer1 = nn.Linear(360, 180)
         self.relu = nn.ReLU()
         self.layer2 = nn.Linear(180, 1)
         self.sigmoid = nn.Sigmoid()
@@ -73,7 +70,6 @@ class FC4(nn.Module):
         x = self.sigmoid(x)
 
         return x
-
 
 class FC5(nn.Module):
     """

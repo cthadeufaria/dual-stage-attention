@@ -2,7 +2,8 @@ import torch
 from torch.utils.data import DataLoader
 from dataset import VideoDataset
 from backbone import Backbone
-from fully_connected_networks import FC1, FC2, FC3, FC4, FC5
+from feature_fusion import FeatureFusion
+from fully_connected_networks import FC1
 from short_time_regression import Simple1DCNN, Group1DCNN
 from long_time_regression import LongTimeRegression
 
@@ -36,7 +37,9 @@ def main():
     dual_attention['fc1'] = FC1().to(device)
     dual_attention['str_B'] = Group1DCNN().to(device)
     dual_attention['str_A'] = Simple1DCNN().to(device)
-    dual_attention['ltr_A'] = LongTimeRegression(6).to(device)
+    dual_attention['ltr_A'] = LongTimeRegression(1).to(device)
+    dual_attention['ltr_B'] = LongTimeRegression(2).to(device)
+    dual_attention['ff'] = FeatureFusion().to(device)
 
     for net in dual_attention.values():
         net.eval()
