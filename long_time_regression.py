@@ -9,7 +9,7 @@ class LongTimeRegression(nn.Module):
     Multi-Head Masked Attention implementation described @ 
     https://www.geeksforgeeks.org/how-to-use-pytorchs-nnmultiheadattention/#handling-masks-with-nnmultiheadattention.
     """
-    def __init__(self, num_layers=6, max_seq_len=1000, model_dim=180, n_head=4):
+    def __init__(self, num_layers=1, max_seq_len=1000, model_dim=180, n_head=4):
         super(LongTimeRegression, self).__init__()
 
         self.position_encoder = nn.Parameter(randn(max_seq_len, model_dim))
@@ -43,6 +43,6 @@ class LongTimeRegression(nn.Module):
         C = self.transformer_encoder(F, mask=causal_mask)
         C = C.permute(1, 0, 2) # Return to original shape (batch_size, seq_len, d_model)
 
-        O = self.activation(self.FC(C)) + C  # TODO: this should be the output of each encoder block. And there's many encoder blocks supposedly.
+        O = self.activation(self.FC(C)) + C  # TODO: this should be the output of each encoder block. And there's many encoder blocks supposedly. Double check theory.
 
         return O.squeeze() # TODO: implement correct output shape.

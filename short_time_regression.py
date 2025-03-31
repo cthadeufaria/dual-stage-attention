@@ -37,7 +37,7 @@ class Simple1DCNN(nn.Module):
         return x
 
 
-class Group1DCNN(nn.Module): # TODO: Validate architecture. How input.shape = (T, 4) and output.shape = (T, 180)?
+class Group1DCNN(nn.Module): # TODO: Validate architecture. How input.shape = (T, 4) and output.shape = (T, 180)? Define QoS features shape.
     """ 
     Implements a group 1D-CNN model for the Short-Time Temporal Regression Module
     in the QoS Feature Processing Sub-Network.
@@ -48,13 +48,13 @@ class Group1DCNN(nn.Module): # TODO: Validate architecture. How input.shape = (T
         super(Group1DCNN, self).__init__()
         self.layer1 = nn.Sequential(
             nn.ZeroPad1d((4, 0)),
-            nn.Conv1d(in_channels=4, out_channels=180, groups=4, kernel_size=5),
+            nn.Conv1d(in_channels=1, out_channels=1, groups=4, kernel_size=5),
             nn.ReLU()
         )
 
         self.layer2 = nn.Sequential(
             nn.ZeroPad1d((4, 0)),
-            nn.Conv1d(in_channels=180, out_channels=180, groups=4, kernel_size=5),
+            nn.Conv1d(in_channels=1, out_channels=1, groups=4, kernel_size=5),
             nn.ReLU()
         )
 
