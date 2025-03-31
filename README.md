@@ -16,13 +16,13 @@ TODO:
     d. fix fully connected networks to use T correctly. [ok]
     e. fix short-time regression module to use T correctly. [ok]
 
-2. Create Long-Time Temporal Regression Module. [ ]
+2. Create Long-Time Temporal Regression Module. [ok]
 
 3. Create Cross-Feature Attention Module. [ ]
 
 4. Update Dataset class to get QoS features. [ ]
 
-- Structure TODOs in the code here to plan tasks.
+5. Create Dual-Attention module class and instantiate in main. [ ]
 
 - Update code to get continuous video chunks from all videos from the Dataset.
 

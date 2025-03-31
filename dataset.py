@@ -1,5 +1,6 @@
 import os, pickle, torch, sys, types, glob
 from torch.utils.data import Dataset
+from numpy import average as avg
 import torch.nn as nn
 from torchvision.transforms import (
     Compose, 
@@ -111,11 +112,47 @@ class VideoDataset(Dataset):
         slowfast_sample_size = 32
         resnet_sample_size = 1
 
+        start_sec = 1
+        end_sec = self.T + 1
+
+        frame_rate = self.annotations[idx]['frame_rate']
+        start_frame = int(start_sec * frame_rate)
+        end_frame = int(end_sec * frame_rate)
+        last_start_frame = int(max(0, (self.T - 1)) * frame_rate)
+
         video_path = os.path.join(self.root_dir, 'assets_mp4_individual', self.annotations[idx]['distorted_mp4_video'])
         video = EncodedVideo.from_path(video_path)
+
+        playback_indicator = torch.tensor(sum(self.annotations[idx]['is_rebuffered_bool'][start_frame : end_frame]) / frame_rate)
+
+        rebuffered = self.annotations[idx]['is_rebuffered_bool'][:end_frame]
+
+        ones_indices = [i for i, x in enumerate(rebuffered) if x == 1]
+
+        if not ones_indices:
+            temporal_recency_feature = len(rebuffered) / frame_rate # TODO: fix this metric.
+        else:
+            last_one_idx = ones_indices[-1]
+            temporal_recency_feature = len(rebuffered) - last_one_idx - 1 / frame_rate
+            
+        representation_quality = torch.tensor(avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame])) # TODO: implement logarithmic scale.
+
+        if start_sec == 0:
+            bitrate_switch = torch.tensor(0)
+
+        else:
+            bitrate_switch = torch.tensor(max(0, 
+                avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame]) -
+                avg(self.annotations[idx]['playout_bitrate'][last_start_frame : start_frame])
+            ))
+
         video_data = [
-            video.get_clip(start_sec=0, end_sec=self.T),
-            video.get_clip(start_sec=0, end_sec=self.T)
+            video.get_clip(start_sec=start_sec, end_sec=end_sec),
+            video.get_clip(start_sec=start_sec, end_sec=end_sec),
+            playback_indicator,
+            temporal_recency_feature,
+            representation_quality,
+            bitrate_switch,
         ]
 
         slowfast_transform = self.transforms[0](self.T * slowfast_sample_size, downsample_size, mean, std)

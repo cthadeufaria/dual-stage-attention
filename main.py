@@ -6,6 +6,7 @@ from feature_fusion import FeatureFusion
 from fully_connected_networks import FC1
 from short_time_regression import Simple1DCNN, Group1DCNN
 from long_time_regression import LongTimeRegression
+from cross_feature_attention import CrossFeatureAttention
 
 
 def main():
@@ -26,8 +27,13 @@ def main():
     video_chunk = 1 # seconds
 
     # Load the dataset.
-    inputs = [
+    video_content_inputs = [
         [a[0].to(device), a[1].to(device)] if type(a) == list else a.to(device)
+        for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk))))
+    ]
+
+    qos_inputs = [
+        [a[2].to(device), a[3].to(device), a[4].to(device), a[5].to(device)] if type(a) == list else a.to(device)
         for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk))))
     ]
 
@@ -35,8 +41,9 @@ def main():
     dual_attention = {}
     dual_attention['backbone'] = Backbone().to(device)
     dual_attention['fc1'] = FC1().to(device)
-    dual_attention['str_B'] = Group1DCNN().to(device)
     dual_attention['str_A'] = Simple1DCNN().to(device)
+    dual_attention['str_B'] = Group1DCNN().to(device)
+    dual_attention['cfa'] = CrossFeatureAttention().to(device)
     dual_attention['ltr_A'] = LongTimeRegression(1).to(device)
     dual_attention['ltr_B'] = LongTimeRegression(2).to(device)
     dual_attention['ff'] = FeatureFusion().to(device)
@@ -44,13 +51,14 @@ def main():
     for net in dual_attention.values():
         net.eval()
 
-    # Forward pass.
-    video_content_features = dual_attention['backbone'](inputs)
+    # Video content sub-network forward pass.
+    video_content_features = dual_attention['backbone'](video_content_inputs)
     downsampled_features = dual_attention['fc1'](video_content_features)
     temporal_reasoning_features = dual_attention['str_A'](downsampled_features[None, :])
     attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
 
-    qos_features = inputs[1] # TODO: implement QoS feature extraction.
+    # QoS sub-network forward pass. # TODO: implement a class to encapsulate the dual attention model and instantiate in main.
+    qos_features = qos_inputs # TODO: implement QoS feature extraction.
     qos_features = qos_features[None, :].to(device)
 
     print(video_content_features.shape)

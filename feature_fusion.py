@@ -26,4 +26,4 @@ class FeatureFusion(nn.Module):
         overall_QoE = self.FC3(cat(overall_alpha*X_VC, (1 - overall_alpha)*X_QOS))
         continuous_QoE = self.FC5(cat(continuous_alpha*O_VC, (1 - continuous_alpha)*O_QOS))
 
-        return continuous_QoE, overall_QoE
+        return overall_QoE, continuous_QoE
