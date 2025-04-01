@@ -27,15 +27,13 @@ def main():
     video_chunk = 1 # seconds
 
     # Load the dataset.
-    video_content_inputs = [
-        [a[0].to(device), a[1].to(device)] if type(a) == list else a.to(device)
+    inputs = [
+        [a[0].to(device), a[1].to(device)] if type(a) == list else a.to(device) 
         for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk))))
     ]
 
-    qos_inputs = [
-        [a[2].to(device), a[3].to(device), a[4].to(device), a[5].to(device)] if type(a) == list else a.to(device)
-        for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk))))
-    ]
+    video_content_inputs = inputs[:3]
+    qos_features = inputs[3:]
 
     # Instantiate sub-networks.
     dual_attention = {}
@@ -43,7 +41,7 @@ def main():
     dual_attention['fc1'] = FC1().to(device)
     dual_attention['str_A'] = Simple1DCNN().to(device)
     dual_attention['str_B'] = Group1DCNN().to(device)
-    dual_attention['cfa'] = CrossFeatureAttention().to(device)
+    # dual_attention['cfa'] = CrossFeatureAttention().to(device)
     dual_attention['ltr_A'] = LongTimeRegression(1).to(device)
     dual_attention['ltr_B'] = LongTimeRegression(2).to(device)
     dual_attention['ff'] = FeatureFusion().to(device)
@@ -58,13 +56,19 @@ def main():
     attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
 
     # QoS sub-network forward pass. # TODO: implement a class to encapsulate the dual attention model and instantiate in main.
-    qos_features = qos_inputs # TODO: implement QoS feature extraction.
-    qos_features = qos_features[None, :].to(device)
+    qos_features = dual_attention['str_B'](qos_features)
+    # group_relations = dual_attention['cfa'](qos_features)
+    transformer_output = dual_attention['ltr_B'](qos_features)
+    fused_features = dual_attention['ff'](transformer_output)
 
     print(video_content_features.shape)
     print(downsampled_features.shape)
     print(temporal_reasoning_features.shape)
     print(attention_map.shape)
+    print(qos_features.shape)
+    # print(group_relations.shape)
+    print(transformer_output.shape)
+    print(fused_features.shape)
     
 
 if __name__ == "__main__":

@@ -140,7 +140,7 @@ class VideoDataset(Dataset):
         
         temporal_recency_feature = torch.tensor(temporal_recency_feature)
 
-        avg_bitrate = torch.tensor(avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame]))
+        avg_bitrate = avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame])
         epsilon = 1e-6  # Prevents log(0)
         representation_quality = torch.tensor(np.log10(avg_bitrate + epsilon))
 
@@ -168,4 +168,4 @@ class VideoDataset(Dataset):
         slowfast_transform(video_data[0])
         resnet_transform(video_data[1])
 
-        return [v['video'] for v in video_data]
+        return [v['video'] if isinstance(v, dict) else v for v in video_data]

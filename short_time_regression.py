@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 
 
 class Simple1DCNN(nn.Module):
@@ -48,13 +49,13 @@ class Group1DCNN(nn.Module): # TODO: Validate architecture. How input.shape = (T
         super(Group1DCNN, self).__init__()
         self.layer1 = nn.Sequential(
             nn.ZeroPad1d((4, 0)),
-            nn.Conv1d(in_channels=1, out_channels=1, groups=4, kernel_size=5),
+            nn.Conv1d(in_channels=4, out_channels=180, groups=4, kernel_size=5), # TODO:fix this. ValueError: in_channels must be divisible by groups
             nn.ReLU()
         )
 
         self.layer2 = nn.Sequential(
             nn.ZeroPad1d((4, 0)),
-            nn.Conv1d(in_channels=1, out_channels=1, groups=4, kernel_size=5),
+            nn.Conv1d(in_channels=180, out_channels=180, groups=4, kernel_size=5),
             nn.ReLU()
         )
 
@@ -65,7 +66,7 @@ class Group1DCNN(nn.Module): # TODO: Validate architecture. How input.shape = (T
         )
 
     def forward(self, x):
-        x = self.layer1(x)
+        x = self.layer1(torch.tensor(x)) # TODO:fix this.
         x = self.layer2(x)
         x = self.layer3(x)
 
