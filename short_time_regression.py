@@ -66,7 +66,7 @@ class Group1DCNN(nn.Module): # TODO: Validate architecture. How input.shape = (T
         )
 
     def forward(self, x):
-        x = self.layer1(torch.tensor(x)) # TODO:fix this.
+        x = self.layer1(x[None, :]) # TODO:fix this.
         x = self.layer2(x)
         x = self.layer3(x)
 

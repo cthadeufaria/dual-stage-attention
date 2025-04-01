@@ -32,8 +32,8 @@ def main():
         for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk))))
     ]
 
-    video_content_inputs = inputs[:3]
-    qos_features = inputs[3:]
+    video_content_inputs = inputs[:2]
+    qos_features = torch.tensor(inputs[2:])
 
     # Instantiate sub-networks.
     dual_attention = {}

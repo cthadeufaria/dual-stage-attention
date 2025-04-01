@@ -142,16 +142,16 @@ class VideoDataset(Dataset):
 
         avg_bitrate = avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame])
         epsilon = 1e-6  # Prevents log(0)
-        representation_quality = torch.tensor(np.log10(avg_bitrate + epsilon))
+        representation_quality = torch.tensor(np.float32(np.log10(avg_bitrate + epsilon)))
 
         if start_sec == 0:
             bitrate_switch = torch.tensor(0)
 
         else:
-            bitrate_switch = torch.tensor(max(0, 
+            bitrate_switch = torch.tensor(np.float32(max(0, 
                 avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame]) -
                 avg(self.annotations[idx]['playout_bitrate'][last_start_frame : start_frame])
-            ))
+            )))
 
         video_data = [
             video.get_clip(start_sec=start_sec, end_sec=end_sec),
