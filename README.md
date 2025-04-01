@@ -20,7 +20,7 @@ TODO:
 
 3. Create Cross-Feature Attention Module. [ ]
 
-4. Update Dataset class to get QoS features. [ ]
+4. Update Dataset class to get QoS features. [ok]
 
 5. Create Dual-Attention module class and instantiate in main. [ ]
 

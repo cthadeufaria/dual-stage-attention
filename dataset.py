@@ -2,6 +2,7 @@ import os, pickle, torch, sys, types, glob
 from torch.utils.data import Dataset
 from numpy import average as avg
 import torch.nn as nn
+import numpy as np
 from torchvision.transforms import (
     Compose, 
     Lambda,
@@ -105,7 +106,7 @@ class VideoDataset(Dataset):
     def __len__(self):
         return len(self.annotations)
 
-    def __getitem__(self, idx): # TODO: get QoS features from the dataset.
+    def __getitem__(self, idx):
         downsample_size = (224, 224)
         mean = [0.45, 0.45, 0.45] # TODO: check if normalization parameters are correct.
         std = [0.225, 0.225, 0.225]
@@ -129,13 +130,19 @@ class VideoDataset(Dataset):
 
         ones_indices = [i for i, x in enumerate(rebuffered) if x == 1]
 
+        duration = self.annotations[idx]['video_duration_sec']
+
         if not ones_indices:
-            temporal_recency_feature = len(rebuffered) / frame_rate # TODO: fix this metric.
+            temporal_recency_feature = len(rebuffered) / (frame_rate * duration)
         else:
             last_one_idx = ones_indices[-1]
-            temporal_recency_feature = len(rebuffered) - last_one_idx - 1 / frame_rate
-            
-        representation_quality = torch.tensor(avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame])) # TODO: implement logarithmic scale.
+            temporal_recency_feature = len(rebuffered) - last_one_idx - 1 / (frame_rate * duration)
+        
+        temporal_recency_feature = torch.tensor(temporal_recency_feature)
+
+        avg_bitrate = torch.tensor(avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame]))
+        epsilon = 1e-6  # Prevents log(0)
+        representation_quality = torch.tensor(np.log10(avg_bitrate + epsilon))
 
         if start_sec == 0:
             bitrate_switch = torch.tensor(0)
