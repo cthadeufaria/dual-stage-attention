@@ -52,7 +52,7 @@ def main():
     video_content_features = dual_attention['backbone'](video_content_inputs)
     downsampled_features = dual_attention['fc1'](video_content_features)
     temporal_reasoning_features = dual_attention['str_A'](downsampled_features[None, :])
-    video_contento_attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
+    video_contents_attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
 
     # QoS sub-network forward pass.
     qos_temporal_reasoning = dual_attention['str_B'](qos_features)
@@ -60,12 +60,12 @@ def main():
     qos_attention_map = dual_attention['ltr_B'](group_relations)
 
     # Fuse video content and QoS sub-networks.
-    fused_features = dual_attention['ff']((video_contento_attention_map, qos_attention_map))
+    fused_features = dual_attention['ff']((video_contents_attention_map, qos_attention_map))
 
     print(video_content_features.shape)
     print(downsampled_features.shape)
     print(temporal_reasoning_features.shape)
-    print(video_contento_attention_map.shape)
+    print(video_contents_attention_map.shape)
     print(qos_temporal_reasoning.shape)
     print(group_relations.shape)
     print(qos_attention_map.shape)

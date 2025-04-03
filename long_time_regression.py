@@ -32,7 +32,7 @@ class LongTimeRegression(nn.Module):
         Input shape: (batch_size, seq_len, d_model)
         Output shape: (batch_size, seq_len, d_model)
         """
-        x = x[None, None, :] if len(x.shape) == 1 else x # TODO: implement correct input shape considering seq_len = T.
+        x = x[None, None, :] if len(x.shape) == 1 else x[None, :] if len(x.shape) == 2 else x # TODO: implement correct input shape considering seq_len = T.
         seq_len = x.shape[1] # T / video chunk
         
         F = x + self.position_encoder[None, :seq_len, :]  # (1, seq_len, d_model)
