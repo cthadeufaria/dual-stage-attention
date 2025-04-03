@@ -32,8 +32,8 @@ class LongTimeRegression(nn.Module):
         Input shape: (batch_size, seq_len, d_model)
         Output shape: (batch_size, seq_len, d_model)
         """
-        x = x[None, None, :] if len(x.shape) == 1 else x[None, :] if len(x.shape) == 2 else x # TODO: implement correct input shape considering seq_len = T.
-        seq_len = x.shape[1] # T / video chunk
+        x = x[None, None, :] if len(x.shape) == 1 else x[None, :] if len(x.shape) == 2 else x
+        seq_len = x.shape[1] # T video chunk
         
         F = x + self.position_encoder[None, :seq_len, :]  # (1, seq_len, d_model)
         F = F.permute(1, 0, 2)
@@ -45,4 +45,4 @@ class LongTimeRegression(nn.Module):
 
         O = self.activation(self.FC(C)) + C  # TODO: this should be the output of each encoder block. And there's many encoder blocks supposedly. Double check theory.
 
-        return O.squeeze() # TODO: implement correct output shape.
+        return O.squeeze(0) # TODO: implement correct output shape.
