@@ -4,7 +4,6 @@ import torch.nn as nn
 class CrossFeatureAttention(nn.Module):
     """
     Implements the cross feature attention module for the dual-stage attention model.
-    Implementation follows instructions @ https://magazine.sebastianraschka.com/p/understanding-and-coding-self-attention.
     """
     def __init__(self):
         super(CrossFeatureAttention, self).__init__()
