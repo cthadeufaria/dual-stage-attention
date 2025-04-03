@@ -34,13 +34,13 @@ def main():
     video_content_inputs = inputs[:2]
     qos_features = torch.tensor(inputs[2:]).to(device)
 
-    # Instantiate sub-networks.
+    # Instantiate sub-networks. # TODO: implement a class to encapsulate the dual attention model and instantiate in main.
     dual_attention = {}
     dual_attention['backbone'] = Backbone().to(device)
     dual_attention['fc1'] = FC1().to(device)
     dual_attention['str_A'] = Simple1DCNN().to(device)
     dual_attention['str_B'] = Group1DCNN().to(device)
-    # dual_attention['cfa'] = CrossFeatureAttention().to(device)
+    dual_attention['cfa'] = CrossFeatureAttention().to(device)
     dual_attention['ltr_A'] = LongTimeRegression(1).to(device)
     dual_attention['ltr_B'] = LongTimeRegression(2).to(device)
     dual_attention['ff'] = FeatureFusion().to(device)
@@ -54,7 +54,7 @@ def main():
     temporal_reasoning_features = dual_attention['str_A'](downsampled_features[None, :])
     video_contento_attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
 
-    # QoS sub-network forward pass. # TODO: implement a class to encapsulate the dual attention model and instantiate in main.
+    # QoS sub-network forward pass.
     qos_temporal_reasoning = dual_attention['str_B'](qos_features)
     group_relations = dual_attention['cfa'](qos_temporal_reasoning)
     qos_attention_map = dual_attention['ltr_B'](group_relations)
@@ -67,7 +67,7 @@ def main():
     print(temporal_reasoning_features.shape)
     print(video_contento_attention_map.shape)
     print(qos_temporal_reasoning.shape)
-    # print(group_relations.shape)
+    print(group_relations.shape)
     print(qos_attention_map.shape)
     print(fused_features.shape)
     
