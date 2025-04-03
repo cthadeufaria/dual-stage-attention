@@ -1,5 +1,4 @@
 import torch.nn as nn
-import torch
 
 
 class Simple1DCNN(nn.Module):
@@ -14,19 +13,30 @@ class Simple1DCNN(nn.Module):
 
         self.layer1 = nn.Sequential(
             nn.ZeroPad1d((4, 0)),
-            nn.Conv1d(in_channels=1, out_channels=1, kernel_size=5),
+            nn.Conv1d(
+                in_channels=1, 
+                out_channels=1, 
+                kernel_size=5
+            ),
             nn.ReLU()
         )
 
         self.layer2 = nn.Sequential(
             nn.ZeroPad1d((4, 0)),
-            nn.Conv1d(in_channels=1, out_channels=1, kernel_size=5),
+            nn.Conv1d(
+                in_channels=1, 
+                out_channels=1, 
+                kernel_size=5
+            ),
             nn.ReLU()
         )
 
         self.layer3 = nn.Sequential(
             nn.Flatten(0),
-            nn.Linear(in_features=180, out_features=180),
+            nn.Linear(
+                in_features=180, 
+                out_features=180
+            ),
             nn.ReLU()
         )
 
@@ -38,7 +48,7 @@ class Simple1DCNN(nn.Module):
         return x
 
 
-class Group1DCNN(nn.Module): # TODO: Validate architecture. How input.shape = (T, 4) and output.shape = (T, 180)? Define QoS features shape.
+class Group1DCNN(nn.Module):
     """ 
     Implements a group 1D-CNN model for the Short-Time Temporal Regression Module
     in the QoS Feature Processing Sub-Network.
@@ -47,27 +57,36 @@ class Group1DCNN(nn.Module): # TODO: Validate architecture. How input.shape = (T
     """
     def __init__(self):
         super(Group1DCNN, self).__init__()
+        
+        # Layer 1: (1,4,T) → (1,180,T)
         self.layer1 = nn.Sequential(
             nn.ZeroPad1d((4, 0)),
-            nn.Conv1d(in_channels=4, out_channels=180, groups=4, kernel_size=5), # TODO:fix this. ValueError: in_channels must be divisible by groups
+            nn.Conv1d(
+                in_channels=4, 
+                out_channels=180, 
+                kernel_size=5, 
+                groups=4, 
+            ),
             nn.ReLU()
         )
-
+        
+        # Layer 2: (1,180,T) → (1,180,T)
         self.layer2 = nn.Sequential(
             nn.ZeroPad1d((4, 0)),
-            nn.Conv1d(in_channels=180, out_channels=180, groups=4, kernel_size=5),
-            nn.ReLU()
-        )
-
-        self.layer3 = nn.Sequential(
-            nn.Flatten(0),
-            nn.Linear(in_features=180, out_features=180),
+            nn.Conv1d(
+                in_channels=180, 
+                out_channels=180, 
+                kernel_size=5, 
+                groups=4, 
+            ),
             nn.ReLU()
         )
 
     def forward(self, x):
-        x = self.layer1(x[None, :]) # TODO:fix this.
-        x = self.layer2(x)
-        x = self.layer3(x)
+        # Input shape: (T, 4)
+        x = x[None, :].permute(1, 0).unsqueeze(0)  # → (1, 4, T)
+        x = self.layer1(x)                 # → (1, 180, T)
+        x = self.layer2(x)                 # → (1, 180, T)
+        x = x.permute(0, 2, 1).squeeze(0) # → (T, 180)
 
         return x

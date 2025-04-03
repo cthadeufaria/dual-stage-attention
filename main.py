@@ -19,8 +19,7 @@ def main():
     https://rocm.docs.amd.com/projects/radeon/en/latest/docs/compatibility/native_linux/native_linux_compatibility.html
     https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html#architecture-support-compatibility-matrix
     """ 
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # TODO: try to install rocm 5.3 to support compatibility with gfx1012 and AMD ATI Radeon RX 5500/5500M / Pro 5500M.
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
     
     # Define video chunk size.
@@ -33,7 +32,7 @@ def main():
     ]
 
     video_content_inputs = inputs[:2]
-    qos_features = torch.tensor(inputs[2:])
+    qos_features = torch.tensor(inputs[2:]).to(device)
 
     # Instantiate sub-networks.
     dual_attention = {}
@@ -53,21 +52,23 @@ def main():
     video_content_features = dual_attention['backbone'](video_content_inputs)
     downsampled_features = dual_attention['fc1'](video_content_features)
     temporal_reasoning_features = dual_attention['str_A'](downsampled_features[None, :])
-    attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
+    video_contento_attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
 
     # QoS sub-network forward pass. # TODO: implement a class to encapsulate the dual attention model and instantiate in main.
-    qos_features = dual_attention['str_B'](qos_features)
-    # group_relations = dual_attention['cfa'](qos_features)
-    transformer_output = dual_attention['ltr_B'](qos_features)
-    fused_features = dual_attention['ff'](transformer_output)
+    qos_temporal_reasoning = dual_attention['str_B'](qos_features)
+    group_relations = dual_attention['cfa'](qos_temporal_reasoning)
+    qos_attention_map = dual_attention['ltr_B'](group_relations)
+
+    # Fuse video content and QoS sub-networks.
+    fused_features = dual_attention['ff']((video_contento_attention_map, qos_attention_map))
 
     print(video_content_features.shape)
     print(downsampled_features.shape)
     print(temporal_reasoning_features.shape)
-    print(attention_map.shape)
-    print(qos_features.shape)
+    print(video_contento_attention_map.shape)
+    print(qos_temporal_reasoning.shape)
     # print(group_relations.shape)
-    print(transformer_output.shape)
+    print(qos_attention_map.shape)
     print(fused_features.shape)
     
 
