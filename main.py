@@ -1,12 +1,8 @@
 import torch
+
 from torch.utils.data import DataLoader
 from dataset import VideoDataset
-from backbone import Backbone
-from feature_fusion import FeatureFusion
-from fully_connected_networks import FC1
-from short_time_regression import Simple1DCNN, Group1DCNN
-from long_time_regression import LongTimeRegression
-from cross_feature_attention import CrossFeatureAttention
+from dual_attention import DualAttention
 
 
 def main():
@@ -34,45 +30,12 @@ def main():
     video_content_inputs = inputs[:2]
     qos_features = torch.tensor(inputs[2:]).to(device)
 
-    # Instantiate sub-networks. # TODO: implement a class to encapsulate the dual attention model and instantiate in main.
-    dual_attention = {}
-    dual_attention['backbone'] = Backbone().to(device)
-    dual_attention['fc1'] = FC1().to(device)
-    dual_attention['str_A'] = Simple1DCNN().to(device)
-    dual_attention['str_B'] = Group1DCNN().to(device)
-    dual_attention['cfa'] = CrossFeatureAttention().to(device)
-    dual_attention['ltr_A'] = LongTimeRegression(1).to(device)
-    dual_attention['ltr_B'] = LongTimeRegression(2).to(device)
-    dual_attention['ff'] = FeatureFusion().to(device)
+    dual_attention = DualAttention(device)
 
-    for net in dual_attention.values():
-        net.eval()
+    for module in dual_attention.modules.values():
+        module.eval()
 
-    # Video content sub-network forward pass.
-    video_content_features = dual_attention['backbone'](video_content_inputs)
-    downsampled_features = dual_attention['fc1'](video_content_features)
-    temporal_reasoning_features = dual_attention['str_A'](downsampled_features[None, :])
-    video_contents_attention_map = dual_attention['ltr_A'](temporal_reasoning_features)
-
-    # QoS sub-network forward pass.
-    qos_temporal_reasoning = dual_attention['str_B'](qos_features)
-    group_relations = dual_attention['cfa'](qos_temporal_reasoning)
-    qos_attention_map = dual_attention['ltr_B'](group_relations)
-
-    # Fuse video content and QoS sub-networks.
-    fused_features = dual_attention['ff']((video_contents_attention_map, qos_attention_map))
-
-    print('\nSub-Network A\n')
-    print(video_content_features.shape)
-    print(downsampled_features.shape)
-    print(temporal_reasoning_features.shape)
-    print(video_contents_attention_map.shape)
-    print('\nSub-Network B\n')
-    print(qos_features.shape)
-    print(qos_temporal_reasoning.shape)
-    print(group_relations.shape)
-    print(qos_attention_map.shape)
-    print('\nOverall and Continuous QoE prediction:', fused_features[0].shape, fused_features[1].shape)
+    dual_attention((video_content_inputs, qos_features))
 
 
 if __name__ == "__main__":
