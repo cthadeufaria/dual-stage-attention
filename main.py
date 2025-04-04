@@ -18,10 +18,8 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
     
-    # Define video chunk size.
     video_chunk = 1 # seconds
 
-    # Load the dataset.
     inputs = [
         [a[0].to(device), a[1].to(device)] if type(a) == list else a.to(device) 
         for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk))))
