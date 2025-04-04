@@ -15,15 +15,15 @@ class FeatureFusion(nn.Module):
         self.FC5 = FC5()
 
     def forward(self, x):
-        O_VC = x[0]  # Video content features
-        O_QOS = x[1]  # QoS features
-        X_VC = mean(O_VC, dim=0, keepdim=True)
-        X_QOS = mean(O_QOS, dim=0, keepdim=True)
+        O_vc = x[0]  # Video Content
+        O_QoS = x[1]  # QoS
+        X_vc = mean(O_vc, dim=0)
+        X_QoS = mean(O_QoS, dim=0)
 
-        overall_alpha = self.FC2(cat((X_VC, X_QOS), dim=1))
-        continuous_alpha = self.FC4(cat((O_VC, O_QOS), dim=1))
+        overall_alpha = self.FC2(cat((X_vc, X_QoS)))
+        continuous_alpha = self.FC4(cat((O_vc, O_QoS), dim=1))
 
-        overall_QoE = self.FC3(cat(overall_alpha*X_VC, (1 - overall_alpha)*X_QOS))
-        continuous_QoE = self.FC5(cat(continuous_alpha*O_VC, (1 - continuous_alpha)*O_QOS))
+        overall_QoE = self.FC3(cat((overall_alpha*X_vc, (1 - overall_alpha)*X_QoS)))
+        continuous_QoE = self.FC5(cat((continuous_alpha*O_vc, (1 - continuous_alpha)*O_QoS), dim=1))
 
         return overall_QoE, continuous_QoE

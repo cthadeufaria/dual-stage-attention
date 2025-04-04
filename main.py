@@ -62,15 +62,18 @@ def main():
     # Fuse video content and QoS sub-networks.
     fused_features = dual_attention['ff']((video_contents_attention_map, qos_attention_map))
 
+    print('\nSub-Network A\n')
     print(video_content_features.shape)
     print(downsampled_features.shape)
     print(temporal_reasoning_features.shape)
     print(video_contents_attention_map.shape)
+    print('\nSub-Network B\n')
+    print(qos_features.shape)
     print(qos_temporal_reasoning.shape)
     print(group_relations.shape)
     print(qos_attention_map.shape)
-    print(fused_features.shape)
-    
+    print('\nOverall and Continuous QoE prediction:', fused_features[0].shape, fused_features[1].shape)
+
 
 if __name__ == "__main__":
     main()
