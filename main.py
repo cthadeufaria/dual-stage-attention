@@ -18,17 +18,27 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
     
-    video_chunk = 1 # seconds
-
-    inputs = [
-        [a[0].to(device), a[1].to(device)] if type(a) == list else a.to(device) 
-        for a in next(iter(DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk))))
-    ]
-
-    video_content_inputs = inputs[:2]
-    qos_features = torch.tensor(inputs[2:]).to(device)
-
     dual_attention = DualAttention(device)
+    
+    video_chunk_A = 5  # seconds # TODO: use different values of T.
+    video_chunk_B = 4  # seconds # TODO: test different for each sub-network.
+
+    dataloader = DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk_A))
+
+    inputs = next(iter(dataloader))
+    
+    video_content_inputs = []
+
+    for chunk in inputs['video_content']:
+        video_content_inputs.append([
+            [b[0].to(device), b[1].to(device)] if type(b) == list else b.to(device) for b in chunk
+        ])
+
+        qos_features = torch.stack([a for a in inputs['qos']]).to(device)
+
+    print(video_content_inputs[0][1].shape)
+    print(video_content_inputs[0][0][0].shape)
+    print(video_content_inputs[0][0][1].shape)
 
     for module in dual_attention.modules.values():
         module.eval()
