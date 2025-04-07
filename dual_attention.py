@@ -30,7 +30,7 @@ class DualAttention(nn.Module):
         # Video content sub-network forward pass.
         video_content_features = self.modules['backbone'](video_content_inputs)
         downsampled_features = self.modules['fc1'](video_content_features)
-        temporal_reasoning_features = self.modules['str_A'](downsampled_features[None, :])
+        temporal_reasoning_features = self.modules['str_A'](downsampled_features)
         video_contents_attention_map = self.modules['ltr_A'](temporal_reasoning_features)
 
         # QoS sub-network forward pass.

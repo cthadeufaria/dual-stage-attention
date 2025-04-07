@@ -21,7 +21,7 @@ def main():
     dual_attention = DualAttention(device)
     
     video_chunk_A = 5  # seconds # TODO: use different values of T.
-    video_chunk_B = 4  # seconds # TODO: test different for each sub-network.
+    video_chunk_B = 4  # seconds # TODO: test different T for each sub-network.
 
     dataloader = DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk_A))
 
