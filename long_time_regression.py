@@ -36,13 +36,13 @@ class LongTimeRegression(nn.Module):
         seq_len = x.shape[1] # T video chunk
         
         F = x + self.position_encoder[None, :seq_len, :]  # (1, seq_len, d_model)
-        F = F.permute(1, 0, 2)
+        F = F.permute(1, 0, 2) # (seq_len, 1, d_model)
         
         causal_mask = self.generate_causal_mask(seq_len).to(F.device)
 
         C = self.transformer_encoder(F, mask=causal_mask)
-        C = C.permute(1, 0, 2) # Return to original shape (batch_size, seq_len, d_model)
+        C = C.permute(1, 0, 2) # Return to original shape (1, seq_len, d_model)
 
         O = self.activation(self.FC(C)) + C  # TODO: this should be the output of each encoder block. And there's many encoder blocks supposedly. Double check theory.
 
-        return O.squeeze(0) # TODO: implement correct output shape.
+        return O.squeeze(0)
