@@ -1,5 +1,5 @@
 from torchvision.models import resnet50, ResNet50_Weights
-from torch import nn, hub, std, cat
+from torch import nn, hub, std, cat, split
 from torch.nn import AdaptiveAvgPool2d, AdaptiveAvgPool3d
 
 
@@ -51,7 +51,7 @@ class ResNet50(nn.Module):
             str(layer[-1].conv1.in_channels)
         )) for layer in self.layers]
 
-        self.avgpool = AdaptiveAvgPool3d((1, 1, 1))
+        self.avgpool = AdaptiveAvgPool2d((1, 1))
 
     def forward(self, x):
         _ = self.model(x)
@@ -62,15 +62,15 @@ class ResNet50(nn.Module):
             ] for layer in self.layers
         ]
 
-        alpha = cat([self.avgpool(fi.permute(1, 0, 2, 3)).flatten() for fi in Fi])
-        beta = cat([std(fi.permute(1, 0, 2, 3), dim=(1, 2, 3)).flatten() for fi in Fi])
+        alpha = cat([self.avgpool(fi).squeeze() for fi in Fi], dim=1)
+        beta = cat([std(fi, dim=(2, 3)) for fi in Fi], dim=1)
 
-        semantic_features = cat([alpha, beta])
+        semantic_features = cat([alpha, beta], dim=1)
 
         return semantic_features
 
 
-# TODO: Understand and implement the following quote:
+# TODO: Check if implementatoin of the following is correct:
 # In the SlowFast pipeline, the temporal stride in the slow pathway is τ = 6,
 # and the speed and channel ratios in the fast pathway are α = 6 and β = 8, respectively.
 class SlowFast(nn.Module):
@@ -95,11 +95,14 @@ class SlowFast(nn.Module):
         self.avgpool = AdaptiveAvgPool3d((1, 1, 1))
 
     def forward(self, x):
-        _ = self.model(x) # TODO: make it work for an input shape different than (1, 256, 32, 224, 224). Need to be any batch size (video chunk) and 24 frames sample per second.
+        x[0] = cat(split(x[0], 8, dim=2), dim=0)
+        x[1] = cat(split(x[1], 32, dim=2), dim=0)
+        
+        _ = self.model(x)
 
         Fi = [activation[str(i)] for i, _ in enumerate(self.layers)]
         
-        motion_features = self.avgpool(Fi[4]).flatten()
+        motion_features = self.avgpool(Fi[4]).squeeze()
 
         return motion_features
 
@@ -113,10 +116,10 @@ class Backbone(nn.Module):
         self.slowfast = SlowFast()
 
     def forward(self, x):
-        resnet50_input = x[1].permute(0, 2, 1, 3, 4)[0, :, :, :, :]
+        resnet50_input = x[1].permute(0, 2, 1, 3, 4).squeeze(0)
         slowfast_input = x[0]
 
         semantic_features = self.resnet(resnet50_input)
         motion_features = self.slowfast(slowfast_input)
 
-        return cat([semantic_features, motion_features])
+        return cat([semantic_features, motion_features], dim=1)

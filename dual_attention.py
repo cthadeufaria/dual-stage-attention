@@ -12,8 +12,8 @@ class DualAttention(nn.Module):
     def __init__(self, device):
         super(DualAttention, self).__init__()
         self.device = device
-        
-        # Instantiate sub-networks. # TODO: implement a class to encapsulate the dual attention model and instantiate in main.
+
+        # Instantiate sub-networks.
         self.modules = {}
         self.modules['backbone'] = Backbone().to(device)
         self.modules['fc1'] = FC1().to(device)

@@ -34,7 +34,7 @@ def main():
             [b[0].to(device), b[1].to(device)] if type(b) == list else b.to(device) for b in chunk
         ])
 
-        qos_features = torch.stack([a for a in inputs['qos']]).to(device)
+    qos_features = inputs['qos'].to(device)
 
     print(video_content_inputs[0][1].shape)
     print(video_content_inputs[0][0][0].shape)
@@ -43,7 +43,8 @@ def main():
     for module in dual_attention.modules.values():
         module.eval()
 
-    dual_attention((video_content_inputs, qos_features))
+    for video_content, qos_feature in zip(video_content_inputs, qos_features.squeeze(0)):
+        dual_attention((video_content, qos_feature))
 
 
 if __name__ == "__main__":
