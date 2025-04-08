@@ -19,11 +19,8 @@ def main():
     print(f"Device: {device}")
     
     dual_attention = DualAttention(device)
-    
-    video_chunk_A = 5  # seconds # TODO: use different values of T.
-    video_chunk_B = 4  # seconds # TODO: test different T for each sub-network.
 
-    dataloader = DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus', video_chunk_A))
+    dataloader = DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus'))
 
     inputs = next(iter(dataloader))
     
@@ -39,12 +36,12 @@ def main():
     print(video_content_inputs[0][1].shape)
     print(video_content_inputs[0][0][0].shape)
     print(video_content_inputs[0][0][1].shape)
+    print(qos_features.shape)
 
     for module in dual_attention.modules.values():
         module.eval()
 
-    for video_content, qos_feature in zip(video_content_inputs, qos_features.squeeze(0)):
-        dual_attention((video_content, qos_feature))
+    dual_attention((video_content_inputs, qos_features))
 
 
 if __name__ == "__main__":

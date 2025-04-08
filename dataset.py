@@ -78,7 +78,7 @@ class PackPathway(nn.Module):
 
 
 class VideoDataset(Dataset):
-    def __init__(self, root_dir, timestep):
+    def __init__(self, root_dir):
         """
         Implementation of Dataset class for LIVE NETFLIX - II dataset.
         More info found @ http://live.ece.utexas.edu/research/LIVE_NFLX_II/live_nflx_plus.html
@@ -93,7 +93,7 @@ class VideoDataset(Dataset):
             os.path.join(self.root_dir, 'Dataset_Information/Pkl_Files/*.pkl')
         )
         self.annotations = self.load_annotations(pkl_files)
-        self.T = timestep
+        self.T = 10
 
     def load_annotations(self, pkl_files):
         annotations = []
@@ -102,6 +102,13 @@ class VideoDataset(Dataset):
                 annotations.append(pickle.load(f, encoding='latin1'))
                 
         return annotations
+
+    def preprocess(self, nested_list):
+        merged_tensor1 = torch.cat([sublist[0][0] for sublist in nested_list], dim=1)
+        merged_tensor2 = torch.cat([sublist[0][1] for sublist in nested_list], dim=1)        
+        merged_tensor3 = torch.cat([sublist[1] for sublist in nested_list], dim=1)
+        
+        return [[merged_tensor1, merged_tensor2], merged_tensor3]
 
     def __len__(self):
         return len(self.annotations)
@@ -118,80 +125,73 @@ class VideoDataset(Dataset):
         video_clips = []
         qos_features = []
 
-        print("Retrieving video", idx, 'from dataset...')
-
-        for i in range(0, math.ceil(duration), self.T):
-            start_frame = int(start_sec * frame_rate)
-            end_frame = int(end_sec * frame_rate)
-
-            last_start_frame = int(max(0, (start_sec - self.T)) * frame_rate)
-
-            playback_indicator = torch.tensor(sum(self.annotations[idx]['is_rebuffered_bool'][start_frame : end_frame]) / frame_rate)
-
-            rebuffered = self.annotations[idx]['is_rebuffered_bool'][:end_frame]
-
-            ones_indices = [i for i, x in enumerate(rebuffered) if x == 1]
-
-            if not ones_indices:
-                temporal_recency_feature = len(rebuffered) / (frame_rate * duration)
-            else:
-                last_one_idx = ones_indices[-1]
-                temporal_recency_feature = len(rebuffered) - last_one_idx - 1 / (frame_rate * duration)
-            
-            temporal_recency_feature = torch.tensor(temporal_recency_feature)
-
-            avg_bitrate = avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame])
-            epsilon = 1e-6  # Prevents log(0)
-            representation_quality = torch.tensor(np.float32(np.log10(avg_bitrate + epsilon)))
-      
-            if start_sec == 0:
-                bitrate_switch = torch.tensor(0)
-
-            else:
-                bitrate_switch = torch.tensor(np.float32(max(0, 
-                    avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame]) -
-                    avg(self.annotations[idx]['playout_bitrate'][last_start_frame : start_frame])
-                )))
-
-            video_clips.append([
-                video.get_clip(start_sec=start_sec, end_sec=end_sec),
-                video.get_clip(start_sec=start_sec, end_sec=end_sec),
-            ])
-
-            chunk_features = torch.stack([
-                playback_indicator,
-                temporal_recency_feature,
-                representation_quality,
-                bitrate_switch
-            ])
-            qos_features.append(chunk_features)
-
-            print('Chunk', i/self.T, 'retrieved /', start_sec, ':', end_sec)
-
-            start_sec += self.T
-            end_sec += self.T
-            end_sec = min(duration, end_sec)
-
         downsample_size = (224, 224)
         mean = [0.45, 0.45, 0.45] # TODO: check if normalization parameters are correct.
         std = [0.225, 0.225, 0.225]
         slowfast_sample_size = 32
         resnet_sample_size = 1
 
-        slowfast_transform = self.transforms[0](self.T * slowfast_sample_size, downsample_size, mean, std)
-        resnet_transform = self.transforms[1](mean, std, self.T * resnet_sample_size)
-        
-        print('Transforming video clips...')
+        print("Retrieving video", idx, 'from dataset...')
 
-        video_content_features = []
-        for clip in video_clips:
-            slowfast_clip = slowfast_transform(clip[0])['video']
-            resnet_clip = resnet_transform(clip[1])['video']
-            video_content_features.append((slowfast_clip, resnet_clip))
+        for i in range(0, math.ceil(duration), self.T):
+            print('Transforming video clip', idx, '.', i, '...')
+
+            slowfast_transform = self.transforms[0]((end_sec - start_sec) * slowfast_sample_size, downsample_size, mean, std)
+            resnet_transform = self.transforms[1](mean, std, (end_sec - start_sec) * resnet_sample_size)
+
+            slowfast_clip = slowfast_transform(video.get_clip(start_sec=start_sec, end_sec=end_sec))['video']
+            resnet_clip = resnet_transform(video.get_clip(start_sec=start_sec, end_sec=end_sec))['video']
+            
+            video_clips.append((slowfast_clip, resnet_clip))
+
+            for i in range(start_sec, end_sec):
+                start_frame = int(start_sec * frame_rate)
+                end_frame = int(end_sec * frame_rate)
+
+                last_start_frame = int(max(0, (start_sec - self.T)) * frame_rate)
+
+                playback_indicator = torch.tensor(sum(self.annotations[idx]['is_rebuffered_bool'][start_frame : end_frame]) / frame_rate)
+
+                rebuffered = self.annotations[idx]['is_rebuffered_bool'][:end_frame]
+
+                ones_indices = [i for i, x in enumerate(rebuffered) if x == 1]
+
+                if not ones_indices:
+                    temporal_recency_feature = len(rebuffered) / (frame_rate * duration)
+                else:
+                    last_one_idx = ones_indices[-1]
+                    temporal_recency_feature = len(rebuffered) - last_one_idx - 1 / (frame_rate * duration)
+                
+                temporal_recency_feature = torch.tensor(temporal_recency_feature)
+
+                avg_bitrate = avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame])
+                epsilon = 1e-6  # Prevents log(0)
+                representation_quality = torch.tensor(np.float32(np.log10(avg_bitrate + epsilon)))
+        
+                if start_sec == 0:
+                    bitrate_switch = torch.tensor(0)
+
+                else:
+                    bitrate_switch = torch.tensor(np.float32(max(0, 
+                        avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame]) -
+                        avg(self.annotations[idx]['playout_bitrate'][last_start_frame : start_frame])
+                    )))
+
+                qos_features.append(torch.stack(
+                    [playback_indicator, temporal_recency_feature, representation_quality, bitrate_switch]
+                ))
+
+            start_sec += self.T
+            end_sec += self.T
+            end_sec = min(math.ceil(duration), end_sec)
 
         qos_features = torch.stack(qos_features)
+        video_clips = self.preprocess(video_clips)
+
+        print('QoS features shape:', qos_features.shape)
+        print('Video clips shape:', len(video_clips), video_clips[0][0].shape, video_clips[0][1].shape, video_clips[1].shape)
 
         return {
-        'video_content': video_content_features,  # List of (slowfast, resnet) transformed clips
-        'qos': qos_features  # Tensor of shape (num_chunks, num_features)
+        'video_content': video_clips,  # List of (slowfast, resnet) transformed clips
+        'qos': qos_features  # Tensor of shape (num_timesteps, num_features)
         }
