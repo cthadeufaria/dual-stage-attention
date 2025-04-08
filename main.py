@@ -33,6 +33,9 @@ def main():
 
     qos_features = inputs['qos'].to(device)
 
+    overall_prediction = inputs['overall_QoE'].to(device)
+    continuous_prediction = inputs['continuous_QoE'].to(device)
+
     for module in dual_attention.modules.values():
         module.eval()
 

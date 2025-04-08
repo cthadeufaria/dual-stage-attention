@@ -190,5 +190,7 @@ class VideoDataset(Dataset):
 
         return {
         'video_content': video_clips,  # List of (slowfast, resnet) transformed clips
-        'qos': qos_features  # Tensor of shape (num_timesteps, num_features)
+        'qos': qos_features,  # Tensor of shape (num_timesteps, num_features)
+        'overall_QoE': self.annotations[idx]['retrospective_zscored_mos'],
+        'continuous_QoE': self.annotations[idx]['continuous_zscored_mos'],
         }
