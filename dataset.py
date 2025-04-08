@@ -188,9 +188,6 @@ class VideoDataset(Dataset):
         qos_features = torch.stack(qos_features)
         video_clips = self.preprocess(video_clips)
 
-        print('QoS features shape:', qos_features.shape)
-        print('Video clips shape:', len(video_clips), video_clips[0][0].shape, video_clips[0][1].shape, video_clips[1].shape)
-
         return {
         'video_content': video_clips,  # List of (slowfast, resnet) transformed clips
         'qos': qos_features  # Tensor of shape (num_timesteps, num_features)

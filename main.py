@@ -16,7 +16,7 @@ def main():
     https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html#architecture-support-compatibility-matrix
     """ 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Device: {device}")
+    print(f"Device set to: {device}")
     
     dual_attention = DualAttention(device)
 
@@ -26,17 +26,12 @@ def main():
     
     video_content_inputs = []
 
-    for chunk in inputs['video_content']:
+    for v in inputs['video_content']:
         video_content_inputs.append([
-            [b[0].to(device), b[1].to(device)] if type(b) == list else b.to(device) for b in chunk
+            [b[0].to(device), b[1].to(device)] if type(b) == list else b.to(device) for b in v
         ])
 
     qos_features = inputs['qos'].to(device)
-
-    print(video_content_inputs[0][1].shape)
-    print(video_content_inputs[0][0][0].shape)
-    print(video_content_inputs[0][0][1].shape)
-    print(qos_features.shape)
 
     for module in dual_attention.modules.values():
         module.eval()

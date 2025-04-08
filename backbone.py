@@ -116,7 +116,7 @@ class Backbone(nn.Module):
         self.slowfast = SlowFast()
 
     def forward(self, x):
-        resnet50_input = x[1].permute(0, 2, 1, 3, 4).squeeze(0)
+        resnet50_input = x[1][0].permute(1, 0, 2, 3)  # -> [T, C, H, W]
         slowfast_input = x[0]
 
         semantic_features = self.resnet(resnet50_input)

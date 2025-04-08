@@ -85,7 +85,7 @@ class Group1DCNN(nn.Module):
 
     def forward(self, x):
         # Input shape: (T, 4)
-        x = x[None, :].permute(1, 0).unsqueeze(0)  # → (1, 4, T)
+        x = x.permute(1, 0).unsqueeze(0)  # → (1, 4, T)
         x = self.layer1(x)
         x = self.layer2(x)
 

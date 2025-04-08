@@ -34,24 +34,11 @@ class DualAttention(nn.Module):
         video_contents_attention_map = self.modules['ltr_A'](temporal_reasoning_features)
 
         # QoS sub-network forward pass.
-        qos_temporal_reasoning = self.modules['str_B'](qos_features)
+        qos_temporal_reasoning = self.modules['str_B'](qos_features.squeeze(0))
         group_relations = self.modules['cfa'](qos_temporal_reasoning)
         qos_attention_map = self.modules['ltr_B'](group_relations)
 
         # Fuse video content and QoS sub-networks.
         fused_features = self.modules['ff']((video_contents_attention_map, qos_attention_map))
-
-        # Debug print
-        print('\nSub-Network A\n')
-        print(video_content_features.shape)
-        print(downsampled_features.shape)
-        print(temporal_reasoning_features.shape)
-        print(video_contents_attention_map.shape)
-        print('\nSub-Network B\n')
-        print(qos_features.shape)
-        print(qos_temporal_reasoning.shape)
-        print(group_relations.shape)
-        print(qos_attention_map.shape)
-        print('\nOverall and Continuous QoE prediction:', fused_features[0].shape, fused_features[1].shape)
         
         return fused_features
