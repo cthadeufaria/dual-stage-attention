@@ -1,8 +1,8 @@
 import torch
-
 from datetime import datetime
 from torch.utils.data import DataLoader, random_split
 from loss import Loss
+from torch.utils.tensorboard import SummaryWriter
 
 
 class Trainer:
@@ -10,39 +10,56 @@ class Trainer:
     Class to train the model.
     Built using instructions available @ https://pytorch.org/tutorials/beginner/introyt/trainingyt.html.
     """
-    def __init__(self, model, optimizer, dataset):
+    def __init__(self, model, optimizer, dataset, loss_function):
         self.model = model
         self.optimizer = optimizer
         self.device = model.device
-        self.loss_function = Loss().to(self.device)
+        self.loss_function = loss_function
 
         training_length = int(len(dataset) * 0.8)
         training_dataset, validation_dataset = random_split(dataset, [training_length, len(dataset) - training_length])
 
-        print('traininging set has {} instances'.format(len(training_dataset)))
-        print('validationidation set has {} instances'.format(len(validation_dataset)))
+        print('Training and Validation datasets created.')
+        print('Training set has {} instances.'.format(len(training_dataset)))
+        print('Validation set has {} instances.'.format(len(validation_dataset)))
 
         self.training_dataloader = DataLoader(training_dataset, batch_size=1, shuffle=True)
         self.validation_dataloader = DataLoader(validation_dataset, batch_size=1, shuffle=False)
 
+    def get(self, data):
+            video_content_inputs = []
+            for v in data['video_content']:
+                video_content_inputs.append([
+                    [b[0].to(self.device), b[1].to(self.device)] if type(b) == list else b.to(self.device) for b in v
+                ])
+
+            qos_features = data['qos'].to(self.device)
+
+            overall_prediction = data['overall_QoE'].to(self.device)
+            continuous_prediction = torch.stack(data['continuous_QoE']).to(self.device)
+
+            inputs = (video_content_inputs, qos_features)
+            labels = (overall_prediction, continuous_prediction)
+
+            return inputs, labels
+    
     def train_step(self, epoch_index, tb_writer):
         running_loss = 0.
         last_loss = 0.
 
         for i, data in enumerate(self.training_dataloader):
-            inputs, labels = data  # TODO: update this to fit the dataset.
+            inputs, labels = self.get(data)
 
             self.optimizer.zero_grad()
 
             outputs = self.model(inputs)
-            # dual_attention((video_content_inputs, qos_features))
 
             loss = self.loss_function(outputs, labels)
             loss.backward()
 
             self.optimizer.step()
 
-            running_loss += loss.item()
+            running_loss += loss.item()  # TODO: understand this structure below.
             if i % 100 == 99:
                 last_loss = running_loss / 100 # loss per batch
                 print('batch {} loss: {}'.format(i + 1, last_loss))
@@ -52,21 +69,10 @@ class Trainer:
 
         return last_loss
 
-    def val_step(self):
-        self.model.eval()
-        with torch.no_grad():
-            for x, y in self.val_loader:
-                y_hat = self.model(x)
-                loss = self.loss_fn(y, y_hat)
-        return loss.item()
-
-    def train(self, n_epochs):  # TODO: update the whole training and evaluation.
-        # Initializing in a separate cell so we can easily add more epochs to the same run
+    def train(self, EPOCHS):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        writer = SummaryWriter('runs/fashion_trainer_{}'.format(timestamp))
+        writer = SummaryWriter('runs/DUAL_ATTENTION_LIVENFLX_II_{}'.format(timestamp))
         epoch_number = 0
-
-        EPOCHS = 5
 
         best_vloss = 1_000_000.
 
@@ -74,61 +80,59 @@ class Trainer:
             print('EPOCH {}:'.format(epoch_number + 1))
 
             # Make sure gradient tracking is on, and do a pass over the data
-            model.train(True)
-            avg_loss = train_one_epoch(epoch_number, writer)
-
+            self.model.train(True)
+            avg_train_loss = self.train_step(epoch_number, writer)
 
             running_vloss = 0.0
-            # Set the model to evaluation mode, disabling dropout and using population
-            # statistics for batch normalization.
-            model.eval()
 
-            # Disable gradient computation and reduce memory consumption.
+            self.model.eval()
+
             with torch.no_grad():
-                for i, vdata in enumerate(validation_loader):
-                    vinputs, vlabels = vdata
-                    voutputs = model(vinputs)
-                    vloss = loss_fn(voutputs, vlabels)
+                for i, vdata in enumerate(self.validation_dataloader):
+                    vinputs, vlabels = self.get(vdata)
+                    voutputs = self.model(vinputs)
+                    vloss = self.loss_function(voutputs, vlabels)
                     running_vloss += vloss
 
-            avg_vloss = running_vloss / (i + 1)
-            print('LOSS train {} valid {}'.format(avg_loss, avg_vloss))
+            avg_val_loss = running_vloss / (i + 1)
+            print('LOSS train {} valid {}'.format(avg_train_loss, avg_val_loss))
 
-            # Log the running loss averaged per batch
-            # for both training and validation
+            # Log
             writer.add_scalars('Training vs. Validation Loss',
-                            { 'Training' : avg_loss, 'Validation' : avg_vloss },
+                            { 'Training' : avg_train_loss, 'Validation' : avg_val_loss },
                             epoch_number + 1)
             writer.flush()
 
-            # Track best performance, and save the model's state
-            if avg_vloss < best_vloss:
-                best_vloss = avg_vloss
+            if avg_val_loss < best_vloss:
+                best_vloss = avg_val_loss
                 model_path = 'model_{}_{}'.format(timestamp, epoch_number)
-                torch.save(model.state_dict(), model_path)
+                torch.save(self.model.state_dict(), model_path)
 
             epoch_number += 1
 
+            print(torch.cuda.memory_summary())  # Detailed breakdown
+            print(f"Allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+            print(f"Reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+    
+
         ###############
-        for epoch in range(n_epochs):
-            for x, y in self.train_loader:
-                loss = self.train_step(x, y)
-            val_loss = self.val_step()
-            print(f"Epoch: {epoch}, Loss: {loss}, Val Loss: {val_loss}")
-        print("Training is done")
+        # for epoch in range(n_epochs):
+        #     for x, y in self.train_loader:
+        #         loss = self.train_step(x, y)
+        #     val_loss = self.val_step()
+        #     print(f"Epoch: {epoch}, Loss: {loss}, Val Loss: {val_loss}")
+        # print("Training is done")
 
-        ################### 
-        inputs = next(iter(self.training_dataloader))
+    def val_step(self):
+        self.model.eval()
 
-        video_content_inputs = []
+        # for module in dual_attention.modules.values():
+        #     module.eval()
 
-        for v in inputs['video_content']:
-            video_content_inputs.append([
-                [b[0].to(self.device), b[1].to(self.device)] if type(b) == list else b.to(self.device) for b in v
-            ])
+        with torch.no_grad():
 
-        qos_features = inputs['qos'].to(self.device)
+            for x, y in self.val_loader:
+                y_hat = self.model(x)
+                loss = self.loss_fn(y, y_hat)
 
-        overall_prediction = inputs['overall_QoE'].to(self.device)
-        continuous_prediction = inputs['continuous_QoE'].to(self.device)
-        ######################
+        return loss.item()

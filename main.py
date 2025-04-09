@@ -1,11 +1,11 @@
 import torch
 
 from torch.optim import Adam
-from torch.nn import MSELoss
 
 from dataset import VideoDataset
 from dual_attention import DualAttention
 from trainer import Trainer
+from loss import Loss
 
 
 def main():
@@ -29,11 +29,10 @@ def main():
         model=dual_attention,
         optimizer=Adam(dual_attention.parameters(), lr=0.001),
         dataset=dataset,
+        loss_function=Loss().to(device),
     )
-    trainer.train(n_epochs=600)
-    
-    # for module in dual_attention.modules.values():
-    #     module.eval()
+
+    trainer.train(EPOCHS=600)
 
 
 if __name__ == "__main__":

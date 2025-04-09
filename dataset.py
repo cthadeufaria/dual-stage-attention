@@ -131,10 +131,10 @@ class VideoDataset(Dataset):
         slowfast_sample_size = 32
         resnet_sample_size = 1
 
-        print("Retrieving video", idx, 'from dataset...')
+        print("Retrieving video", idx, 'from dataset.', round(duration, 2),'seconds total.')
 
         for i in range(0, math.ceil(duration), self.T):
-            print('Transforming video clip', idx, '.', i, '...')
+            print("Processing chunk", i, 'of', math.ceil(math.ceil(duration) / self.T))
 
             slowfast_transform = self.transforms[0]((end_sec - start_sec) * slowfast_sample_size, downsample_size, mean, std)
             resnet_transform = self.transforms[1](mean, std, (end_sec - start_sec) * resnet_sample_size)
