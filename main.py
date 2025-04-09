@@ -1,8 +1,11 @@
 import torch
 
-from torch.utils.data import DataLoader
+from torch.optim import Adam
+from torch.nn import MSELoss
+
 from dataset import VideoDataset
 from dual_attention import DualAttention
+from trainer import Trainer
 
 
 def main():
@@ -20,26 +23,17 @@ def main():
     
     dual_attention = DualAttention(device)
 
-    dataloader = DataLoader(VideoDataset('./datasets/LIVE_NFLX_Plus'))
+    dataset = VideoDataset('./datasets/LIVE_NFLX_Plus')
 
-    inputs = next(iter(dataloader))
+    trainer = Trainer(
+        model=dual_attention,
+        optimizer=Adam(dual_attention.parameters(), lr=0.001),
+        dataset=dataset,
+    )
+    trainer.train(n_epochs=600)
     
-    video_content_inputs = []
-
-    for v in inputs['video_content']:
-        video_content_inputs.append([
-            [b[0].to(device), b[1].to(device)] if type(b) == list else b.to(device) for b in v
-        ])
-
-    qos_features = inputs['qos'].to(device)
-
-    overall_prediction = inputs['overall_QoE'].to(device)
-    continuous_prediction = inputs['continuous_QoE'].to(device)
-
-    for module in dual_attention.modules.values():
-        module.eval()
-
-    dual_attention((video_content_inputs, qos_features))
+    # for module in dual_attention.modules.values():
+    #     module.eval()
 
 
 if __name__ == "__main__":
