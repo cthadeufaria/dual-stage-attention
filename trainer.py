@@ -35,8 +35,8 @@ class Trainer:
 
             qos_features = data['qos'].to(self.device)
 
-            overall_prediction = data['overall_QoE'].to(self.device)
-            continuous_prediction = torch.stack(data['continuous_QoE']).to(self.device)
+            overall_prediction = data['overall_QoE'].unsqueeze(0).to(self.device)
+            continuous_prediction = data['continuous_QoE'].permute(1, 0).to(self.device)
 
             inputs = (video_content_inputs, qos_features)
             labels = (overall_prediction, continuous_prediction)
@@ -87,7 +87,7 @@ class Trainer:
 
             self.model.eval()
 
-            with torch.no_grad():
+            with torch.no_grad():  # TODO: separate this into a validation step function.
                 for i, vdata in enumerate(self.validation_dataloader):
                     vinputs, vlabels = self.get(vdata)
                     voutputs = self.model(vinputs)
@@ -113,15 +113,6 @@ class Trainer:
             print(torch.cuda.memory_summary())  # Detailed breakdown
             print(f"Allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
             print(f"Reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
-    
-
-        ###############
-        # for epoch in range(n_epochs):
-        #     for x, y in self.train_loader:
-        #         loss = self.train_step(x, y)
-        #     val_loss = self.val_step()
-        #     print(f"Epoch: {epoch}, Loss: {loss}, Val Loss: {val_loss}")
-        # print("Training is done")
 
     def val_step(self):
         self.model.eval()

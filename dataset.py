@@ -1,80 +1,10 @@
-import os, pickle, torch, sys, types, glob, math
+import os, glob, math, torch
 from torch.utils.data import Dataset
-from numpy import average as avg
-import torch.nn as nn
 import numpy as np
-from torchvision.transforms import (
-    Compose, 
-    Lambda,
-    Resize,
-)
-from torchvision.transforms._transforms_video import NormalizeVideo
-# Fixed module import error using the impl. @ https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/13985#issuecomment-2439896362
+from transforms import Transform
 from pytorchvideo.data.encoded_video import EncodedVideo
-from torchvision.transforms.functional import rgb_to_grayscale
-functional_tensor = types.ModuleType("torchvision.transforms.functional_tensor")
-functional_tensor.rgb_to_grayscale = rgb_to_grayscale
-sys.modules["torchvision.transforms.functional_tensor"] = functional_tensor
-from pytorchvideo.transforms import (
-    ApplyTransformToKey,
-    UniformTemporalSubsample,
-)
-
-
-class Transform:
-    """
-    Class to define the transformation of the video input for the model and make it reusable.
-    """
-    def __init__(self):
-        pass
-
-    def slowfast_transform(self, T, downsample_size, mean, std):
-        return  ApplyTransformToKey(
-            key="video",
-            transform=Compose(
-                [
-                    # TODO: Must be first 24 frames in each second? Do not work with uniformly separated samples?
-                    UniformTemporalSubsample(T),
-                    Lambda(lambda x: x/255.0),
-                    NormalizeVideo(mean, std),
-                    Resize(downsample_size),
-                    PackPathway()
-                ]
-            ),
-        )
-
-    def resnet_transform(self, mean, std, T):
-        return  ApplyTransformToKey(
-            key="video",
-            transform=Compose(
-                [
-                    UniformTemporalSubsample(T),
-                    Lambda(lambda x: x/255.0),
-                    NormalizeVideo(mean, std),
-                ]
-            ),
-        )
-
-
-class PackPathway(nn.Module):
-    """
-    Transform for converting video frames as a list of tensors. 
-    """
-    def __init__(self):
-        super().__init__()
-        
-    def forward(self, frames: torch.Tensor, slowfast_alpha: int = 4):
-        fast_pathway = frames
-        slow_pathway = torch.index_select(
-            frames,
-            1,
-            torch.linspace(
-                0, frames.shape[1] - 1, frames.shape[1] // slowfast_alpha
-            ).long(),
-        )
-        frame_list = [slow_pathway, fast_pathway]
-        
-        return frame_list
+from config import Config as cfg
+from utils import load_annotations, batch_tensor, get_qos_features, qos_norm_params, labels_norm_params
 
 
 class VideoDataset(Dataset):
@@ -92,23 +22,9 @@ class VideoDataset(Dataset):
         pkl_files = glob.glob(
             os.path.join(self.root_dir, 'Dataset_Information/Pkl_Files/*.pkl')
         )
-        self.annotations = self.load_annotations(pkl_files)
-        self.T = 10
-
-    def load_annotations(self, pkl_files):
-        annotations = []
-        for file in pkl_files:
-            with open(file, 'rb') as f:
-                annotations.append(pickle.load(f, encoding='latin1'))
-                
-        return annotations
-
-    def preprocess(self, nested_list):
-        merged_tensor1 = torch.cat([sublist[0][0] for sublist in nested_list], dim=1)
-        merged_tensor2 = torch.cat([sublist[0][1] for sublist in nested_list], dim=1)        
-        merged_tensor3 = torch.cat([sublist[1] for sublist in nested_list], dim=1)
-        
-        return [[merged_tensor1, merged_tensor2], merged_tensor3]
+        self.annotations = load_annotations(pkl_files)
+        self.normalization_parameters = qos_norm_params(self.annotations), labels_norm_params(self.annotations)
+        cfg.T = 10
 
     def __len__(self):
         return len(self.annotations)
@@ -117,80 +33,49 @@ class VideoDataset(Dataset):
         video_path = os.path.join(self.root_dir, 'assets_mp4_individual', self.annotations[idx]['distorted_mp4_video'])
         video = EncodedVideo.from_path(video_path)
 
-        frame_rate = self.annotations[idx]['frame_rate']
         duration = self.annotations[idx]['video_duration_sec']
         start_sec = 0
-        end_sec = min(self.T, duration)
+        end_sec = min(cfg.T, duration)
 
         video_clips = []
-        qos_features = []
-
-        downsample_size = (224, 224)
-        mean = [0.45, 0.45, 0.45] # TODO: check if normalization parameters are correct.
-        std = [0.225, 0.225, 0.225]
-        slowfast_sample_size = 32
-        resnet_sample_size = 1
 
         print("Retrieving video", idx, 'from dataset.', round(duration, 2),'seconds total.')
 
-        for i in range(0, math.ceil(duration), self.T):
-            print("Processing chunk", i, 'of', math.ceil(math.ceil(duration) / self.T))
+        for i in range(0, math.ceil(duration), cfg.T):
+            print("Processing chunk", int(i/cfg.T) + 1, 'of', math.ceil(math.ceil(duration)/cfg.T))
 
-            slowfast_transform = self.transforms[0]((end_sec - start_sec) * slowfast_sample_size, downsample_size, mean, std)
-            resnet_transform = self.transforms[1](mean, std, (end_sec - start_sec) * resnet_sample_size)
+            slowfast_transform = self.transforms[0]((end_sec - start_sec) * cfg.slowfast_sample_size, cfg.downsample_size, cfg.mean, cfg.std)
+            resnet_transform = self.transforms[1](cfg.mean, cfg.std, (end_sec - start_sec) * cfg.resnet_sample_size)
 
             slowfast_clip = slowfast_transform(video.get_clip(start_sec=start_sec, end_sec=end_sec))['video']
             resnet_clip = resnet_transform(video.get_clip(start_sec=start_sec, end_sec=end_sec))['video']
             
             video_clips.append((slowfast_clip, resnet_clip))
 
-            for i in range(start_sec, end_sec):
-                start_frame = int(start_sec * frame_rate)
-                end_frame = int(end_sec * frame_rate)
-
-                last_start_frame = int(max(0, (start_sec - self.T)) * frame_rate)
-
-                playback_indicator = torch.tensor(sum(self.annotations[idx]['is_rebuffered_bool'][start_frame : end_frame]) / frame_rate)
-
-                rebuffered = self.annotations[idx]['is_rebuffered_bool'][:end_frame]
-
-                ones_indices = [i for i, x in enumerate(rebuffered) if x == 1]
-
-                if not ones_indices:
-                    temporal_recency_feature = len(rebuffered) / (frame_rate * duration)
-                else:
-                    last_one_idx = ones_indices[-1]
-                    temporal_recency_feature = len(rebuffered) - last_one_idx - 1 / (frame_rate * duration)
-                
-                temporal_recency_feature = torch.tensor(temporal_recency_feature)
-
-                avg_bitrate = avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame])
-                epsilon = 1e-6  # Prevents log(0)
-                representation_quality = torch.tensor(np.float32(np.log10(avg_bitrate + epsilon)))
-        
-                if start_sec == 0:
-                    bitrate_switch = torch.tensor(0)
-
-                else:
-                    bitrate_switch = torch.tensor(np.float32(max(0, 
-                        avg(self.annotations[idx]['playout_bitrate'][start_frame : end_frame]) -
-                        avg(self.annotations[idx]['playout_bitrate'][last_start_frame : start_frame])
-                    )))
-
-                qos_features.append(torch.stack(
-                    [playback_indicator, temporal_recency_feature, representation_quality, bitrate_switch]
-                ))
-
-            start_sec += self.T
-            end_sec += self.T
+            start_sec += cfg.T
+            end_sec += cfg.T
             end_sec = min(math.ceil(duration), end_sec)
 
-        qos_features = torch.stack(qos_features)
-        video_clips = self.preprocess(video_clips)
+        qos_features = get_qos_features(self.annotations[idx])
+
+        max_values = self.normalization_parameters[0][0]
+        min_values = self.normalization_parameters[0][1]
+
+        qos_features[:, 0] = (qos_features[:, 0] - min_values['playback_indicator']) / (max_values['playback_indicator'] - min_values['playback_indicator'])
+        qos_features[:, 1] = (qos_features[:, 1] - min_values['temporal_recency_feature']) / (max_values['temporal_recency_feature'] - min_values['temporal_recency_feature'])
+        qos_features[:, 2] = (qos_features[:, 2] - min_values['representation_quality']) / (max_values['representation_quality'] - min_values['representation_quality'])
+        qos_features[:, 3] = (qos_features[:, 3] - min_values['bitrate_switch']) / (max_values['bitrate_switch'] - min_values['bitrate_switch'])
+        
+        video_clips = batch_tensor(video_clips)
+
+        labels_norm_params = self.normalization_parameters[1]
+
+        overall_qoe = torch.tensor((self.annotations[idx]['retrospective_zscored_mos'] - labels_norm_params[1]) / (labels_norm_params[0] - labels_norm_params[1]))
+        continuous_qoe = (torch.tensor(self.annotations[idx]['continuous_zscored_mos']) - labels_norm_params[3]) / (labels_norm_params[2] - labels_norm_params[3])
 
         return {
-        'video_content': video_clips,  # List of (slowfast, resnet) transformed clips
-        'qos': qos_features,  # Tensor of shape (num_timesteps, num_features)
-        'overall_QoE': self.annotations[idx]['retrospective_zscored_mos'],
-        'continuous_QoE': self.annotations[idx]['continuous_zscored_mos'],
+        'video_content': video_clips,  # (slowfast, resnet)
+        'qos': qos_features,  # (num_timesteps, qos_features)
+        'overall_QoE': overall_qoe,
+        'continuous_QoE': continuous_qoe,
         }
