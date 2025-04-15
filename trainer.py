@@ -23,25 +23,38 @@ class Trainer:
         print('Training set has {} instances'.format(len(training_dataset)))
         print('Validation set has {} instances'.format(len(validation_dataset)))
 
-        self.training_dataloader = DataLoader(training_dataset, batch_size=1, shuffle=True)
-        self.validation_dataloader = DataLoader(validation_dataset, batch_size=1, shuffle=False)
+        self.training_dataloader = DataLoader(
+            training_dataset, 
+            batch_size=4, 
+            shuffle=True, 
+            collate_fn=self.collate_function
+        )
+        self.validation_dataloader = DataLoader(
+            validation_dataset, 
+            batch_size=4, 
+            shuffle=False, 
+            collate_fn=self.collate_function
+        )
 
+    def collate_function(self, batch: list) -> list:
+        return [self.get(data) for data in batch]
+    
     def get(self, data):
-            video_content_inputs = []
-            for v in data['video_content']:
-                video_content_inputs.append([
-                    [b[0].to(self.device), b[1].to(self.device)] if type(b) == list else b.to(self.device) for b in v
-                ])
+        video_content_inputs = []
+        for v in data['video_content']:
+            video_content_inputs.append([
+                [b[0].to(self.device), b[1].to(self.device)] if type(b) == list else b.to(self.device) for b in v
+            ])
 
-            qos_features = data['qos'].to(self.device)
+        qos_features = data['qos'].to(self.device)
 
-            overall_prediction = data['overall_QoE'].to(self.device)
-            continuous_prediction = data['continuous_QoE'].permute(1, 0).to(self.device)
+        overall_prediction = data['overall_QoE'].to(self.device)
+        continuous_prediction = data['continuous_QoE'].to(self.device)
 
-            inputs = (video_content_inputs, qos_features)
-            labels = (overall_prediction, continuous_prediction)
+        inputs = (video_content_inputs, qos_features)
+        labels = (overall_prediction, continuous_prediction)
 
-            return inputs, labels
+        return inputs, labels
     
     def train_step(self, epoch_index, tb_writer):
         running_loss = 0.
@@ -61,7 +74,7 @@ class Trainer:
 
             self.optimizer.step()
 
-            running_loss += loss.item()  # TODO: understand this structure below.
+            running_loss += loss.item()  # TODO: understand this structure below and change if needed.            
             if i % 100 == 99:
                 last_loss = running_loss / 100 # loss per batch
                 print('batch {} loss: {}'.format(i + 1, last_loss))
