@@ -1,6 +1,7 @@
 from torchvision.models import resnet50, ResNet50_Weights
 from torch import nn, hub, std, cat, split
 from torch.nn import AdaptiveAvgPool2d, AdaptiveAvgPool3d
+import torch
 
 
 activation = {}
@@ -45,6 +46,8 @@ class ResNet50(nn.Module):
         for parameter in self.model.parameters():
             parameter.requires_grad = False
 
+        self.model.eval()
+
         self.layers = list(self.model.children())[-6:-2]
 
         self.hooks = [layer.register_forward_hook(getActivation(
@@ -54,18 +57,19 @@ class ResNet50(nn.Module):
         self.avgpool = AdaptiveAvgPool2d((1, 1))
 
     def forward(self, x):
-        _ = self.model(x)
+        with torch.no_grad():
+            _ = self.model(x)
 
-        Fi = [
-            activation[
-                str(layer[-1].conv1.in_channels)
-            ] for layer in self.layers
-        ]
+            Fi = [
+                activation[
+                    str(layer[-1].conv1.in_channels)
+                ] for layer in self.layers
+            ]
 
-        alpha = cat([self.avgpool(fi).squeeze() for fi in Fi], dim=1)
-        beta = cat([std(fi, dim=(2, 3)) for fi in Fi], dim=1)
+            alpha = cat([self.avgpool(fi).squeeze() for fi in Fi], dim=1)
+            beta = cat([std(fi, dim=(2, 3)) for fi in Fi], dim=1)
 
-        semantic_features = cat([alpha, beta], dim=1)
+            semantic_features = cat([alpha, beta], dim=1)
 
         return semantic_features
 
@@ -86,6 +90,8 @@ class SlowFast(nn.Module):
         for parameter in self.model.parameters():
             parameter.requires_grad = False
 
+        self.model.eval()
+
         self.layers = [layer for layer in self.model.blocks]
 
         self.hooks = [layer.register_forward_hook(getActivation(
@@ -95,14 +101,15 @@ class SlowFast(nn.Module):
         self.avgpool = AdaptiveAvgPool3d((1, 1, 1))
 
     def forward(self, x):
-        x[0] = cat(split(x[0], 8, dim=2), dim=0)
-        x[1] = cat(split(x[1], 32, dim=2), dim=0)
-        
-        _ = self.model(x)
+        with torch.no_grad():
+            x[0] = cat(split(x[0], 8, dim=2), dim=0)
+            x[1] = cat(split(x[1], 32, dim=2), dim=0)
+            
+            _ = self.model(x)
 
-        Fi = [activation[str(i)] for i, _ in enumerate(self.layers)]
-        
-        motion_features = self.avgpool(Fi[4]).squeeze()
+            Fi = [activation[str(i)] for i, _ in enumerate(self.layers)]
+            
+            motion_features = self.avgpool(Fi[4]).squeeze()
 
         return motion_features
 

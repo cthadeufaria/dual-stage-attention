@@ -39,7 +39,7 @@ class VideoDataset(Dataset):
 
         video_clips = []
 
-        print("Retrieving video", idx, 'from dataset.', round(duration, 2),'seconds total.')
+        print("Retrieving", round(duration, 2), "seconds of video number", idx, 'from dataset')
 
         for i in range(0, math.ceil(duration), cfg.T):
             print("Processing chunk", int(i/cfg.T) + 1, 'of', math.ceil(math.ceil(duration)/cfg.T))
@@ -77,5 +77,5 @@ class VideoDataset(Dataset):
         'video_content': video_clips,  # (slowfast, resnet)
         'qos': qos_features,  # (num_timesteps, qos_features)
         'overall_QoE': overall_qoe,
-        'continuous_QoE': continuous_qoe,
+        'continuous_QoE': continuous_qoe[::int(self.annotations[idx]['frame_rate'])],
         }

@@ -23,7 +23,7 @@ def main():
     
     dual_attention = DualAttention(device)
 
-    dataset = VideoDataset('./datasets/LIVE_NFLX_Plus')
+    dataset = VideoDataset('./dual-stage-attention/datasets/LIVE_NFLX_Plus')
 
     trainer = Trainer(
         model=dual_attention,

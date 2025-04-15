@@ -1,7 +1,7 @@
 import torch
 from datetime import datetime
 from torch.utils.data import DataLoader, random_split
-from loss import Loss
+from utils import debug_cuda
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -19,9 +19,9 @@ class Trainer:
         training_length = int(len(dataset) * 0.8)
         training_dataset, validation_dataset = random_split(dataset, [training_length, len(dataset) - training_length])
 
-        print('Training and Validation datasets created.')
-        print('Training set has {} instances.'.format(len(training_dataset)))
-        print('Validation set has {} instances.'.format(len(validation_dataset)))
+        print('Training and Validation datasets created')
+        print('Training set has {} instances'.format(len(training_dataset)))
+        print('Validation set has {} instances'.format(len(validation_dataset)))
 
         self.training_dataloader = DataLoader(training_dataset, batch_size=1, shuffle=True)
         self.validation_dataloader = DataLoader(validation_dataset, batch_size=1, shuffle=False)
@@ -35,7 +35,7 @@ class Trainer:
 
             qos_features = data['qos'].to(self.device)
 
-            overall_prediction = data['overall_QoE'].unsqueeze(0).to(self.device)
+            overall_prediction = data['overall_QoE'].to(self.device)
             continuous_prediction = data['continuous_QoE'].permute(1, 0).to(self.device)
 
             inputs = (video_content_inputs, qos_features)
@@ -51,6 +51,8 @@ class Trainer:
             inputs, labels = self.get(data)
 
             self.optimizer.zero_grad()
+
+            debug_cuda()
 
             outputs = self.model(inputs)
 
@@ -87,7 +89,7 @@ class Trainer:
 
             self.model.eval()
 
-            with torch.no_grad():  # TODO: separate this into a validation step function.
+            with torch.no_grad():  # TODO: separate the validation from training.
                 for i, vdata in enumerate(self.validation_dataloader):
                     vinputs, vlabels = self.get(vdata)
                     voutputs = self.model(vinputs)
@@ -109,10 +111,6 @@ class Trainer:
                 torch.save(self.model.state_dict(), model_path)
 
             epoch_number += 1
-
-            print(torch.cuda.memory_summary())  # Detailed breakdown
-            print(f"Allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-            print(f"Reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
     def val_step(self):
         self.model.eval()

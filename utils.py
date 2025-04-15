@@ -4,6 +4,11 @@ import math
 import numpy as np
 
 
+def debug_cuda():
+    print(torch.cuda.memory_summary())  # Detailed breakdown
+    print(f"Allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+    print(f"Reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+    
 def load_annotations(pkl_files):
     annotations = []
     for file in pkl_files:

@@ -2,6 +2,7 @@ absl-py==2.2.2
 av==14.0.1
 blinker==1.4
 certifi==2025.1.31
+cffi==1.17.1
 charset-normalizer==3.4.1
 cmake-format==0.6.13
 cmakelang==0.6.13
@@ -59,12 +60,13 @@ pillow==11.1.0
 pluggy==1.5.0
 portalocker==3.1.1
 protobuf==6.30.2
+pycairo==1.27.0
+pycparser==2.22
 PyGObject==3.42.1
 PyJWT==2.3.0
 pynvim==0.4.2
 pyparsing==2.4.7
 pytest==8.3.4
-python-apt==2.4.0+ubuntu4
 python-dateutil==2.9.0.post0
 pytorchvideo==0.1.5
 PyYAML==6.0.2
