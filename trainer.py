@@ -25,26 +25,24 @@ class Trainer:
 
         self.training_dataloader = DataLoader(
             training_dataset, 
-            batch_size=4, 
+            batch_size=2, 
             shuffle=True, 
             collate_fn=self.collate_function
         )
         self.validation_dataloader = DataLoader(
             validation_dataset, 
-            batch_size=4, 
+            batch_size=2, 
             shuffle=False, 
             collate_fn=self.collate_function
         )
 
     def collate_function(self, batch: list) -> list:
         return [self.get(data) for data in batch]
-    
+
     def get(self, data):
-        video_content_inputs = []
-        for v in data['video_content']:
-            video_content_inputs.append([
-                [b[0].to(self.device), b[1].to(self.device)] if type(b) == list else b.to(self.device) for b in v
-            ])
+        video_content_inputs = [
+            [b[0].to(self.device), b[1].to(self.device)] if type(b) == list else b.to(self.device) for b in data['video_content']
+        ]
 
         qos_features = data['qos'].to(self.device)
 
@@ -55,19 +53,25 @@ class Trainer:
         labels = (overall_prediction, continuous_prediction)
 
         return inputs, labels
-    
+
     def train_step(self, epoch_index, tb_writer):
         running_loss = 0.
         last_loss = 0.
 
         for i, data in enumerate(self.training_dataloader):
-            inputs, labels = self.get(data)
+            inputs, labels = [
+                value[0] for value in data
+            ], [
+                value[1] for value in data
+            ]
 
             self.optimizer.zero_grad()
 
             debug_cuda()
 
-            outputs = self.model(inputs)
+            outputs = []
+            for input in inputs:
+                outputs.append(self.model(input))
 
             loss = self.loss_function(outputs, labels)
             loss.backward()

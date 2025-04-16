@@ -20,14 +20,14 @@ def main():
     """ 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device set to: {device}")
-    
+
     dual_attention = DualAttention(device)
 
     dataset = VideoDataset('./dual-stage-attention/datasets/LIVE_NFLX_Plus')
 
     trainer = Trainer(
         model=dual_attention,
-        optimizer=Adam(dual_attention.parameters(), lr=0.001),
+        optimizer=Adam(dual_attention.parameters(), lr=0.002),
         dataset=dataset,
         loss_function=Loss().to(device),
     )
