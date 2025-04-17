@@ -17,22 +17,35 @@ class Loss(nn.Module):
         self.alpha = 0.1
         self.eps = 1e-8
 
-    def forward(self, y, y_hat):
-        loss = self.mse(y[0], y_hat[0]) + self.alpha * (1 - self.PLCC(y[0], y_hat[0])) + \
-        self.mse(y[1], y_hat[1]) + self.alpha * (1 - self.PLCC(y[1], y_hat[1]))
+    def forward(self, y_hat, y):
+        overall_labels = torch.stack([a[0].float() for a in y])
+        continuous_labels = [a[1] for a in y]
+
+        overall_predictions = torch.stack([a[0] for a in y_hat]).squeeze(-1)
+        continuous_predictions = [a[1].squeeze(-1) for a in y_hat]
+
+        continuous_loss = 0.
+        for prediction, label in zip(continuous_predictions, continuous_labels):
+            continuous_loss += self.mse(prediction, label) + self.alpha * (1. - self.PLCC(prediction, label))
+
+        continuous_loss /= len(continuous_labels)
+
+        overall_loss = self.mse(overall_predictions, overall_labels) + self.alpha * (1. - self.PLCC(overall_predictions, overall_labels))
+
+        loss = continuous_loss + overall_loss
+        loss /= 2.
 
         return loss
 
     def pearson_loss(self, pred, target):
-        pred_flat = pred.view(-1)
-        target_flat = target.view(-1)
-        
-        stacked = torch.stack([pred_flat, target_flat], dim=0)
-        
-        corr_matrix = torch.corrcoef(stacked)
-        
-        plcc = corr_matrix[0, 1]
-        
+        pred = pred.view(-1)
+        target = target.view(-1)
+
+        covariance = torch.cov(torch.stack([pred, target]))[0, 1]
+        std_pred = torch.std(pred)
+        std_target = torch.std(target)
+
+        plcc = covariance / (std_pred * std_target + self.eps)
         plcc = torch.clamp(plcc, -1.0 + self.eps, 1.0 - self.eps)
         
         return plcc

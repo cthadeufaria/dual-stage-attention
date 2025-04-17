@@ -102,9 +102,9 @@ class SlowFast(nn.Module):
 
     def forward(self, x):
         with torch.no_grad():
-            x[0] = cat(split(x[0], 8, dim=2), dim=0)
-            x[1] = cat(split(x[1], 32, dim=2), dim=0)
-            
+            x[0] = torch.stack(split(x[0], 8, dim=1))  # -> [B, C, T_slow, H, W]
+            x[1] = torch.stack(split(x[1], 32, dim=1))  # -> [B, C, T_fast, H, W]
+
             _ = self.model(x)
 
             Fi = [activation[str(i)] for i, _ in enumerate(self.layers)]

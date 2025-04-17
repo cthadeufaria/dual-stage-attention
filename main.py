@@ -10,13 +10,8 @@ from loss import Loss
 
 def main():
     """
-    Install PyTorch with ROCm Compute Platform using info @ https://pytorch.org/get-started/locally/.
-    HIP and ROCm installation instructions for cuda impl. @ https://rocm.docs.amd.com/projects/install-on-linux/en/latest/install/quick-start.html.
-    Unsupportted GPU Github issue @ https://github.com/ROCm/rocBLAS/issues/1352.
-    GPU support and compatibility matrices @
-    https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html#linux-supported-gpus
-    https://rocm.docs.amd.com/projects/radeon/en/latest/docs/compatibility/native_linux/native_linux_compatibility.html
-    https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html#architecture-support-compatibility-matrix
+    Main function to run the dual-stage attention model.
+    Install PyTorch with CUDA using info available @ https://pytorch.org/get-started/locally/.
     """ 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device set to: {device}")
@@ -27,7 +22,7 @@ def main():
 
     trainer = Trainer(
         model=dual_attention,
-        optimizer=Adam(dual_attention.parameters(), lr=0.002),
+        optimizer=Adam(dual_attention.parameters(), lr=0.004),
         dataset=dataset,
         loss_function=Loss().to(device),
     )

@@ -65,7 +65,7 @@ class VideoDataset(Dataset):
         qos_features[:, 1] = (qos_features[:, 1] - min_values['temporal_recency_feature']) / (max_values['temporal_recency_feature'] - min_values['temporal_recency_feature'])
         qos_features[:, 2] = (qos_features[:, 2] - min_values['representation_quality']) / (max_values['representation_quality'] - min_values['representation_quality'])
         qos_features[:, 3] = (qos_features[:, 3] - min_values['bitrate_switch']) / (max_values['bitrate_switch'] - min_values['bitrate_switch'])
-        
+
         video_clips = batch_tensor(video_clips)
 
         labels_norm_params = self.normalization_parameters[1]
@@ -77,5 +77,5 @@ class VideoDataset(Dataset):
         'video_content': video_clips,  # (slowfast, resnet)
         'qos': qos_features,  # (num_timesteps, qos_features)
         'overall_QoE': overall_qoe,
-        'continuous_QoE': continuous_qoe[::int(self.annotations[idx]['frame_rate'])],
+        'continuous_QoE': continuous_qoe[::round(self.annotations[idx]['frame_rate'])],
         }

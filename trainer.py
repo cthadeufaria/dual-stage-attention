@@ -25,13 +25,13 @@ class Trainer:
 
         self.training_dataloader = DataLoader(
             training_dataset, 
-            batch_size=2, 
+            batch_size=4, 
             shuffle=True, 
             collate_fn=self.collate_function
         )
         self.validation_dataloader = DataLoader(
             validation_dataset, 
-            batch_size=2, 
+            batch_size=4, 
             shuffle=False, 
             collate_fn=self.collate_function
         )
@@ -40,17 +40,15 @@ class Trainer:
         return [self.get(data) for data in batch]
 
     def get(self, data):
-        video_content_inputs = [
-            [b[0].to(self.device), b[1].to(self.device)] if type(b) == list else b.to(self.device) for b in data['video_content']
-        ]
+        video_content_inputs = data['video_content']
 
         qos_features = data['qos'].to(self.device)
 
-        overall_prediction = data['overall_QoE'].to(self.device)
-        continuous_prediction = data['continuous_QoE'].to(self.device)
+        overall_labels = data['overall_QoE'].to(self.device)
+        continuous_labels = data['continuous_QoE'].to(self.device)
 
-        inputs = (video_content_inputs, qos_features)
-        labels = (overall_prediction, continuous_prediction)
+        inputs = [video_content_inputs, qos_features]
+        labels = [overall_labels, continuous_labels]
 
         return inputs, labels
 
@@ -70,7 +68,7 @@ class Trainer:
             debug_cuda()
 
             outputs = []
-            for input in inputs:
+            for input in inputs:  # TODO: How to pass batched inputs to the model? Check model input/output shapes.
                 outputs.append(self.model(input))
 
             loss = self.loss_function(outputs, labels)
@@ -78,7 +76,7 @@ class Trainer:
 
             self.optimizer.step()
 
-            running_loss += loss.item()  # TODO: understand this structure below and change if needed.            
+            running_loss += loss.item()  # TODO: understand this structure below and change if needed.
             if i % 100 == 99:
                 last_loss = running_loss / 100 # loss per batch
                 print('batch {} loss: {}'.format(i + 1, last_loss))
@@ -98,7 +96,6 @@ class Trainer:
         for epoch in range(EPOCHS):
             print('EPOCH {}:'.format(epoch_number + 1))
 
-            # Make sure gradient tracking is on, and do a pass over the data
             self.model.train(True)
             avg_train_loss = self.train_step(epoch_number, writer)
 
