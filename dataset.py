@@ -1,6 +1,5 @@
 import os, glob, math, torch
 from torch.utils.data import Dataset
-import numpy as np
 from transforms import Transform
 from pytorchvideo.data.encoded_video import EncodedVideo
 from config import Config as cfg
@@ -24,6 +23,7 @@ class VideoDataset(Dataset):
         )
         self.annotations = load_annotations(pkl_files)
         self.normalization_parameters = qos_norm_params(self.annotations), labels_norm_params(self.annotations)
+        # TODO: select max tensor size of video clips here.
         cfg.T = 10
 
     def __len__(self):
@@ -39,7 +39,7 @@ class VideoDataset(Dataset):
 
         video_clips = []
 
-        print("Retrieving", round(duration, 2), "seconds of video number", idx, 'from dataset')
+        print("Parsing", round(duration, 2), "seconds of video", idx, 'from dataset')
 
         for i in range(0, math.ceil(duration), cfg.T):
             print("Processing chunk", int(i/cfg.T) + 1, 'of', math.ceil(math.ceil(duration)/cfg.T))
@@ -67,15 +67,23 @@ class VideoDataset(Dataset):
         qos_features[:, 3] = (qos_features[:, 3] - min_values['bitrate_switch']) / (max_values['bitrate_switch'] - min_values['bitrate_switch'])
 
         video_clips = batch_tensor(video_clips)
-
+        # TODO: pad video clips to max size of video clips.
+        
         labels_norm_params = self.normalization_parameters[1]
 
         overall_qoe = torch.tensor((self.annotations[idx]['retrospective_zscored_mos'] - labels_norm_params[1]) / (labels_norm_params[0] - labels_norm_params[1]))
-        continuous_qoe = (torch.tensor(self.annotations[idx]['continuous_zscored_mos']) - labels_norm_params[3]) / (labels_norm_params[2] - labels_norm_params[3])
+        continuous_qoe = (
+            (torch.tensor(self.annotations[idx]['continuous_zscored_mos']) - labels_norm_params[3]) / (labels_norm_params[2] - labels_norm_params[3])
+        )[::math.ceil(self.annotations[idx]['frame_rate'])]
+
+        print("Video", idx, "continuous QoE label shape:", continuous_qoe.shape)
+
+        if continuous_qoe.shape[0] != video_clips[1].shape[1]:
+            print("\nWARNING: Continuous QoE label shape does not match video clips shape. Continuous QoE shape:", continuous_qoe.shape, "Video clips shape:", video_clips[1].shape)
 
         return {
         'video_content': video_clips,  # (slowfast, resnet)
         'qos': qos_features,  # (num_timesteps, qos_features)
         'overall_QoE': overall_qoe,
-        'continuous_QoE': continuous_qoe[::round(self.annotations[idx]['frame_rate'])],
+        'continuous_QoE': continuous_qoe,
         }

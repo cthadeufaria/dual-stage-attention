@@ -13,12 +13,16 @@ class LongTimeRegression(nn.Module):
         super(LongTimeRegression, self).__init__()
 
         self.position_encoder = nn.Parameter(randn(max_seq_len, model_dim))
-        
+
         encoder_layer = TransformerEncoderLayer(
-            model_dim, n_head, dim_feedforward=4 * model_dim, dropout=0.1, activation='relu'
+            model_dim, 
+            n_head, 
+            dim_feedforward=4 * model_dim, 
+            dropout=0.1,
+            activation='relu'
         )
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers=num_layers)
-        
+
         self.FC = nn.Linear(180, 180)
         self.activation = nn.SELU()
 
@@ -26,7 +30,7 @@ class LongTimeRegression(nn.Module):
         """Generate causal mask to prevent attending to future positions"""
         return triu(ones(sz, sz) == 1).transpose(0, 1).float().masked_fill(
             triu(ones(sz, sz)) == 0, float('-inf'))
-    
+
     def forward(self, x):
         """
         Input shape: (batch_size, seq_len, d_model)
@@ -34,13 +38,14 @@ class LongTimeRegression(nn.Module):
         """
         x = x[None, None, :] if len(x.shape) == 1 else x[None, :] if len(x.shape) == 2 else x
         seq_len = x.shape[1] # T video chunk
-        
+        # TODO: create src_key_padding_mask
+
         F = x + self.position_encoder[None, :seq_len, :]  # (1, seq_len, d_model)
         F = F.permute(1, 0, 2) # (seq_len, 1, d_model)
-        
+
         causal_mask = self.generate_causal_mask(seq_len).to(F.device)
 
-        C = self.transformer_encoder(F, mask=causal_mask)
+        C = self.transformer_encoder(F, mask=causal_mask, src_key_padding_mask=src_key_padding_mask)
         C = C.permute(1, 0, 2) # Return to original shape (1, seq_len, d_model)
 
         O = self.activation(self.FC(C)) + C  # TODO: this should be the output of each encoder block. And there's many encoder blocks supposedly. Double check theory.

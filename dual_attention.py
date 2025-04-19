@@ -1,6 +1,4 @@
 import torch.nn as nn
-from time import time
-
 from backbone import Backbone
 from feature_fusion import FeatureFusion
 from fully_connected_networks import FC1

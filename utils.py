@@ -24,7 +24,7 @@ def batch_tensor(nested_list):
     tensor1 = torch.cat([sublist[0][0] for sublist in nested_list], dim=1)
     tensor2 = torch.cat([sublist[0][1] for sublist in nested_list], dim=1)        
     tensor3 = torch.cat([sublist[1] for sublist in nested_list], dim=1)
-    
+
     return [[tensor1, tensor2], tensor3]
 
 def labels_norm_params(annotations):
