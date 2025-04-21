@@ -4,6 +4,7 @@ from transforms import Transform
 from pytorchvideo.data.encoded_video import EncodedVideo
 from config import Config as cfg
 from utils import load_annotations, batch_tensor, get_qos_features, qos_norm_params, labels_norm_params
+from datetime import datetime as time
 
 
 class VideoDataset(Dataset):
@@ -23,7 +24,7 @@ class VideoDataset(Dataset):
         )
         self.annotations = load_annotations(pkl_files)
         self.normalization_parameters = qos_norm_params(self.annotations), labels_norm_params(self.annotations)
-        # TODO: select max tensor size of video clips here.
+        # TODO: select max tensor size of each video clip here.
         cfg.T = 10
 
     def __len__(self):
@@ -42,14 +43,12 @@ class VideoDataset(Dataset):
         print("Parsing", round(duration, 2), "seconds of video", idx, 'from dataset')
 
         for i in range(0, math.ceil(duration), cfg.T):
-            print("Processing chunk", int(i/cfg.T) + 1, 'of', math.ceil(math.ceil(duration)/cfg.T))
-
             slowfast_transform = self.transforms[0]((end_sec - start_sec) * cfg.slowfast_sample_size, cfg.downsample_size, cfg.mean, cfg.std)
             resnet_transform = self.transforms[1](cfg.mean, cfg.std, (end_sec - start_sec) * cfg.resnet_sample_size)
 
             slowfast_clip = slowfast_transform(video.get_clip(start_sec=start_sec, end_sec=end_sec))['video']
             resnet_clip = resnet_transform(video.get_clip(start_sec=start_sec, end_sec=end_sec))['video']
-            
+
             video_clips.append((slowfast_clip, resnet_clip))
 
             start_sec += cfg.T
@@ -68,7 +67,7 @@ class VideoDataset(Dataset):
 
         video_clips = batch_tensor(video_clips)
         # TODO: pad video clips to max size of video clips.
-        
+
         labels_norm_params = self.normalization_parameters[1]
 
         overall_qoe = torch.tensor((self.annotations[idx]['retrospective_zscored_mos'] - labels_norm_params[1]) / (labels_norm_params[0] - labels_norm_params[1]))
@@ -76,10 +75,12 @@ class VideoDataset(Dataset):
             (torch.tensor(self.annotations[idx]['continuous_zscored_mos']) - labels_norm_params[3]) / (labels_norm_params[2] - labels_norm_params[3])
         )[::math.ceil(self.annotations[idx]['frame_rate'])]
 
-        print("Video", idx, "continuous QoE label shape:", continuous_qoe.shape)
-
         if continuous_qoe.shape[0] != video_clips[1].shape[1]:
-            print("\nWARNING: Continuous QoE label shape does not match video clips shape. Continuous QoE shape:", continuous_qoe.shape, "Video clips shape:", video_clips[1].shape)
+            print("\nWARNING: Continuous QoE label shape does not match video clips shape. Continuous QoE shape:", continuous_qoe.shape, "Video clips shape:", video_clips[1].shape, "\n")
+            last = (
+                (torch.tensor(self.annotations[idx]['continuous_zscored_mos']) - labels_norm_params[3]) / (labels_norm_params[2] - labels_norm_params[3])
+            )[-1]
+            continuous_qoe = torch.cat((continuous_qoe, last.unsqueeze(0)), dim=0)
 
         return {
         'video_content': video_clips,  # (slowfast, resnet)
