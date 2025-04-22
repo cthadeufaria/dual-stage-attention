@@ -45,7 +45,8 @@ class LongTimeRegression(nn.Module):
 
         causal_mask = self.generate_causal_mask(seq_len).to(F.device)
 
-        C = self.transformer_encoder(F, mask=causal_mask, src_key_padding_mask=src_key_padding_mask)
+        # C = self.transformer_encoder(F, mask=causal_mask, src_key_padding_mask=src_key_padding_mask)
+        C = self.transformer_encoder(F, mask=causal_mask)
         C = C.permute(1, 0, 2) # Return to original shape (1, seq_len, d_model)
 
         O = self.activation(self.FC(C)) + C  # TODO: this should be the output of each encoder block. And there's many encoder blocks supposedly. Double check theory.

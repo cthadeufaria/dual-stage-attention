@@ -27,7 +27,7 @@ def main():
         loss_function=Loss().to(device),
     )
 
-    trainer.train_and_validate(EPOCHS=600)
+    trainer.train_and_validate(EPOCHS=20)
 
 
 if __name__ == "__main__":

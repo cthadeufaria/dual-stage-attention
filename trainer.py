@@ -8,6 +8,7 @@ class Trainer:
     """
     Class to train the model.
     Built using instructions available @ https://pytorch.org/tutorials/beginner/introyt/trainingyt.html.
+    Tensorboard instructions available @ https://pytorch.org/docs/stable/tensorboard.html.
     """
     def __init__(self, model, optimizer, dataset, loss_function):
         self.model = model
@@ -77,9 +78,9 @@ class Trainer:
 
             running_loss += loss.item()
             avg_loss = running_loss / (i + 1)
-            print('Training batch {} average loss: {} --------------------'.format(i + 1, avg_loss))
+            print('Batch {} training average loss: {} --------------------'.format(i + 1, avg_loss))
 
-            tb_x = epoch * len(self.training_dataloader) + i + 1
+            tb_x = epoch * len(self.training_dataloader) + i * len(inputs)
             tb_writer.add_scalar('Loss/train', avg_loss, tb_x)
 
         return avg_loss
@@ -105,10 +106,10 @@ class Trainer:
                 loss = self.loss_function(outputs, labels)
                 running_loss += loss.item()
                 avg_loss = running_loss / (i + 1)
-                print('Validation batch {} average loss: {} --------------------'.format(i + 1, avg_loss))
+                print('Batch {} validation average loss: {} --------------------'.format(i + 1, avg_loss))
 
-        tb_x = epoch * len(self.validation_dataloader) + i + 1
-        tb_writer.add_scalar('Loss/val', avg_loss, tb_x)
+                tb_x = epoch * len(self.validation_dataloader) + i * len(inputs)
+                tb_writer.add_scalar('Loss/val', avg_loss, tb_x)
 
         return avg_loss
 
@@ -123,10 +124,11 @@ class Trainer:
         print('Total epochs:', EPOCHS)
 
         for epoch in range(EPOCHS):
+            last_time = datetime.now()
             print('EPOCH {}:'.format(epoch + 1))
 
-            avg_train_loss = self.train_step(epoch + 1, writer)
-            avg_val_loss = self.val_step(epoch + 1, writer)
+            avg_train_loss = self.train_step(epoch, writer)
+            avg_val_loss = self.val_step(epoch, writer)
 
             # Log
             writer.add_scalars('Training vs. Validation Loss',
@@ -139,6 +141,8 @@ class Trainer:
                 model_path = 'runs/models/DUAL_ATTENTION_LIVENFLX_II_{}_EPOCH_{}'.format(timestamp, epoch)
                 torch.save(self.model.state_dict(), model_path)
                 print('Model saved to', model_path)
+
+            print('Epoch {} training and validation elapsed time: {}'.format(epoch + 1, datetime.now() - last_time))
 
         print('Training and validation finished')
         delta = datetime.now() - timestamp

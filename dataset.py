@@ -40,8 +40,6 @@ class VideoDataset(Dataset):
 
         video_clips = []
 
-        print("Parsing", round(duration, 2), "seconds of video", idx, 'from dataset')
-
         for i in range(0, math.ceil(duration), cfg.T):
             slowfast_transform = self.transforms[0]((end_sec - start_sec) * cfg.slowfast_sample_size, cfg.downsample_size, cfg.mean, cfg.std)
             resnet_transform = self.transforms[1](cfg.mean, cfg.std, (end_sec - start_sec) * cfg.resnet_sample_size)
@@ -66,7 +64,7 @@ class VideoDataset(Dataset):
         qos_features[:, 3] = (qos_features[:, 3] - min_values['bitrate_switch']) / (max_values['bitrate_switch'] - min_values['bitrate_switch'])
 
         video_clips = batch_tensor(video_clips)
-        # TODO: pad video clips to max size of video clips.
+        # TODO: pad each video clip to max size of video clips.
 
         labels_norm_params = self.normalization_parameters[1]
 

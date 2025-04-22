@@ -32,13 +32,9 @@ class DualAttention(nn.Module):
         video_content_inputs, qos_features = x
 
         # Video content sub-network forward pass.
-        print("Processing features with input shape:", (video_content_inputs[0][0].shape, video_content_inputs[0][1].shape), video_content_inputs[1].shape)
-
         video_content_features = self.modules_dict['backbone'](video_content_inputs)
         video_content_features = video_content_features.to(self.device)
         
-        print("Video content features shape:", video_content_features.shape)
-
         downsampled_features = self.modules_dict['fc1'](video_content_features)
         temporal_reasoning_features = self.modules_dict['str_A'](downsampled_features)
         video_contents_attention_map = self.modules_dict['ltr_A'](temporal_reasoning_features)
