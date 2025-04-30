@@ -18,10 +18,7 @@ class Loss(nn.Module):
         self.eps = 1e-8
 
     def forward(self, y_hat, y):
-        overall_labels = torch.stack([a[0].float() for a in y])
         continuous_labels = [a[1] for a in y]
-
-        overall_predictions = torch.stack([a[0] for a in y_hat]).squeeze(-1)
         continuous_predictions = [a[1].squeeze(-1) for a in y_hat]
 
         continuous_loss = 0.
@@ -30,10 +27,16 @@ class Loss(nn.Module):
 
         continuous_loss /= len(continuous_labels)
 
+        overall_labels = torch.stack([a[0].float() for a in y])
+        overall_predictions = torch.stack([a[0] for a in y_hat]).squeeze(-1)
         overall_loss = self.mse(overall_predictions, overall_labels) + self.alpha * (1. - self.PLCC(overall_predictions, overall_labels))
 
-        loss = continuous_loss + overall_loss
-        loss /= 2.
+        if torch.isnan(overall_loss).any():
+            loss = continuous_loss
+
+        else:
+            loss = continuous_loss + overall_loss
+            loss /= 2.            
 
         return loss
 
