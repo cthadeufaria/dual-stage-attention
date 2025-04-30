@@ -30,6 +30,7 @@ class VideoDataset(Dataset):
         return len(self.annotations)
 
     def __getitem__(self, idx):
+        print("Loading video:", idx)
         video_path = os.path.join(self.root_dir, 'assets_mp4_individual', self.annotations[idx]['distorted_mp4_video'])
         video = EncodedVideo.from_path(video_path)
 
@@ -63,7 +64,6 @@ class VideoDataset(Dataset):
         qos_features[:, 3] = (qos_features[:, 3] - min_values['bitrate_switch']) / (max_values['bitrate_switch'] - min_values['bitrate_switch'])
 
         video_clips = batch_tensor(video_clips)
-        # TODO: pad each video clip to max size of video clips. Really necessary or can the src_key_padding_mask be created somehow?
 
         labels_norm_params = self.normalization_parameters[1]
 
