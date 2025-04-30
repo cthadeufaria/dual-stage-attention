@@ -4,20 +4,6 @@ from torch.nn import AdaptiveAvgPool2d, AdaptiveAvgPool3d
 import torch
 
 
-activation = {}
-def getActivation(name):
-    """Hook function to extract the output of a layer in the model."""
-    def hook(model, input, output):
-        try:
-            activation[name] = output.detach()
-
-        except AttributeError:
-            for i, layer in enumerate(output):
-                activation[name] = layer.detach()
-
-    return hook
-
-
 class ResNet50(nn.Module):
     """
     ResNet-50 backbone network for the dual-stage attention model.
@@ -50,18 +36,32 @@ class ResNet50(nn.Module):
 
         self.layers = list(self.model.children())[-6:-2]
 
-        self.hooks = [layer.register_forward_hook(getActivation(
+        self.hooks = [layer.register_forward_hook(self.getActivation(
             str(layer[-1].conv1.in_channels)
         )) for layer in self.layers]
 
         self.avgpool = AdaptiveAvgPool2d((1, 1))
+
+        self.activation = {}
+    
+    def getActivation(self, name):
+        """Hook function to extract the output of a layer in the model."""
+        def hook(model, input, output):
+            try:
+                self.activation[name] = output.detach()
+
+            except AttributeError:
+                for i, layer in enumerate(output):
+                    self.activation[name] = layer.detach()
+
+        return hook
 
     def forward(self, x):
         with torch.inference_mode():
             _ = self.model(x)
 
             Fi = [
-                activation[
+                self.activation[
                     str(layer[-1].conv1.in_channels)
                 ] for layer in self.layers
             ]
@@ -70,6 +70,8 @@ class ResNet50(nn.Module):
             beta = cat([std(fi, dim=(2, 3)) for fi in Fi], dim=1)
 
             semantic_features = cat([alpha, beta], dim=1)
+
+            self.activation.clear()
 
         return semantic_features
 
@@ -94,11 +96,25 @@ class SlowFast(nn.Module):
 
         self.layers = [layer for layer in self.model.blocks]
 
-        self.hooks = [layer.register_forward_hook(getActivation(
+        self.hooks = [layer.register_forward_hook(self.getActivation(
             str(i)
         )) for i, layer in enumerate(self.layers)]
 
         self.avgpool = AdaptiveAvgPool3d((1, 1, 1))
+        
+        self.activation = {}
+
+    def getActivation(self, name):
+        """Hook function to extract the output of a layer in the model."""
+        def hook(model, input, output):
+            try:
+                self.activation[name] = output.detach()
+
+            except AttributeError:
+                for i, layer in enumerate(output):
+                    self.activation[name] = layer.detach()
+
+        return hook
 
     def forward(self, x):
         with torch.inference_mode():
@@ -107,9 +123,11 @@ class SlowFast(nn.Module):
 
             _ = self.model(x)
 
-            Fi = [activation[str(i)] for i, _ in enumerate(self.layers)]
+            Fi = [self.activation[str(i)] for i, _ in enumerate(self.layers)]
             
             motion_features = self.avgpool(Fi[4]).squeeze()
+
+            self.activation.clear()
 
         return motion_features
 
