@@ -57,7 +57,7 @@ class ResNet50(nn.Module):
         self.avgpool = AdaptiveAvgPool2d((1, 1))
 
     def forward(self, x):
-        with torch.no_grad():
+        with torch.inference_mode():
             _ = self.model(x)
 
             Fi = [
@@ -101,7 +101,7 @@ class SlowFast(nn.Module):
         self.avgpool = AdaptiveAvgPool3d((1, 1, 1))
 
     def forward(self, x):
-        with torch.no_grad():
+        with torch.inference_mode():
             x[0] = torch.stack(split(x[0], 8, dim=1))  # -> [B, C, T_slow, H, W]
             x[1] = torch.stack(split(x[1], 32, dim=1))  # -> [B, C, T_fast, H, W]
 
