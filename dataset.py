@@ -4,7 +4,6 @@ from transforms import Transform
 from pytorchvideo.data.encoded_video import EncodedVideo
 from config import Config as cfg
 from utils import load_annotations, batch_tensor, get_qos_features, qos_norm_params, labels_norm_params
-from datetime import datetime as time
 
 
 class VideoDataset(Dataset):
@@ -24,7 +23,7 @@ class VideoDataset(Dataset):
         )
         self.annotations = load_annotations(pkl_files)
         self.normalization_parameters = qos_norm_params(self.annotations), labels_norm_params(self.annotations)
-        # TODO: select max tensor size of each video clip here.
+        self.max_duration = math.ceil(max([l['video_duration_sec'] for l in self.annotations]))
         cfg.T = 10
 
     def __len__(self):
@@ -64,7 +63,7 @@ class VideoDataset(Dataset):
         qos_features[:, 3] = (qos_features[:, 3] - min_values['bitrate_switch']) / (max_values['bitrate_switch'] - min_values['bitrate_switch'])
 
         video_clips = batch_tensor(video_clips)
-        # TODO: pad each video clip to max size of video clips.
+        # TODO: pad each video clip to max size of video clips. Really necessary or can the src_key_padding_mask be created somehow?
 
         labels_norm_params = self.normalization_parameters[1]
 
