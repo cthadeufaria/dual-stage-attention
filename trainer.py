@@ -2,6 +2,8 @@ import torch
 from datetime import datetime
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
+from torch.cuda.amp import GradScaler
+from torch import autocast
 
 
 class Trainer:
@@ -10,11 +12,13 @@ class Trainer:
     Built using instructions available @ https://pytorch.org/tutorials/beginner/introyt/trainingyt.html.
     Tensorboard instructions available @ https://pytorch.org/docs/stable/tensorboard.html.
     """
-    def __init__(self, model, optimizer, dataset, loss_function):
+    def __init__(self, model, optimizer, scheduler, dataset, loss_function):
         self.model = model
         self.optimizer = optimizer
+        self.scheduler = scheduler
         self.device = model.device
         self.loss_function = loss_function
+        self.scaler = GradScaler()
 
         training_length = int(len(dataset) * 0.8)
         training_dataset, validation_dataset = random_split(dataset, [training_length, len(dataset) - training_length])
@@ -25,22 +29,25 @@ class Trainer:
 
         self.training_dataloader = DataLoader(
             training_dataset, 
-            batch_size=4, 
+            batch_size=1, 
             shuffle=True, 
-            collate_fn=self.collate_function
+            collate_fn=self.collate_function,
         )
         self.validation_dataloader = DataLoader(
             validation_dataset, 
-            batch_size=4, 
+            batch_size=1,
             shuffle=False, 
-            collate_fn=self.collate_function
+            collate_fn=self.collate_function,
         )
 
     def collate_function(self, batch: list) -> list:
         return [self.get(data) for data in batch]
 
     def get(self, data):
-        video_content_inputs = data['video_content']
+        # video_content_inputs = data['video_content']  # flag: cpu version
+        video_content_inputs = [
+            [a[0].to(self.device), a[1].to(self.device)] if type(a) == list else a.to(self.device) for a in data['video_content']
+        ]
 
         qos_features = data['qos'].to(self.device)
 
@@ -67,14 +74,19 @@ class Trainer:
 
             self.optimizer.zero_grad()
 
-            outputs = []
-            for input in inputs:  # TODO: How to pass batched inputs to the model? Check model input/output shapes.
-                outputs.append(self.model(input))
+            with autocast('cuda'):
+                outputs = []
+                for input in inputs:
+                    outputs.append(self.model(input))
 
-            loss = self.loss_function(outputs, labels)
-            loss.backward()
+                loss = self.loss_function(outputs, labels)
+                # loss.backward()
 
-            self.optimizer.step()
+            self.scaler.scale(loss).backward()
+
+            # self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
 
             running_loss += loss.item()
             avg_loss = running_loss / (i + 1)
@@ -117,7 +129,7 @@ class Trainer:
         print('Starting training...')
 
         timestamp = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-        writer = SummaryWriter('runs/summaries/DUAL_ATTENTION_LIVENFLX_II_SUMMARY_{}'.format(timestamp))
+        writer = SummaryWriter('./runs/summaries/DUAL_ATTENTION_LIVENFLX_II_SUMMARY_{}'.format(timestamp))
         best_loss = float('inf')
 
         print('Timestamp:', timestamp)
@@ -138,11 +150,13 @@ class Trainer:
 
             if avg_val_loss < best_loss:
                 best_loss = avg_val_loss
-                model_path = 'runs/models/DUAL_ATTENTION_LIVENFLX_II_{}_EPOCH_{}'.format(timestamp, epoch)
+                model_path = './runs/models/DUAL_ATTENTION_LIVENFLX_II_{}_EPOCH_{}'.format(timestamp, epoch)
                 torch.save(self.model.state_dict(), model_path)
                 print('Model saved to', model_path)
 
             print('Epoch {} training and validation elapsed time: {}'.format(epoch + 1, datetime.now() - last_time))
+
+            self.scheduler.step()
 
         print('Training and validation finished')
         delta = datetime.now() - timestamp
