@@ -1,6 +1,7 @@
 import torch
 
 from torch.optim import Adam
+from torch.optim.lr_scheduler import ExponentialLR
 
 from dataset import VideoDataset
 from dual_attention import DualAttention
@@ -16,15 +17,18 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device set to: {device}")
 
-    dual_attention = DualAttention(device)
+    dataset = VideoDataset('./datasets/LIVE_NFLX_Plus')
+    dual_attention = DualAttention(device,dataset.max_duration)
 
-    dataset = VideoDataset('./dual-stage-attention/datasets/LIVE_NFLX_Plus')
+    optimizer=Adam(dual_attention.parameters(), lr=5e-4)
+    scheduler = ExponentialLR(optimizer, gamma=0.5)
 
     trainer = Trainer(
         model=dual_attention,
-        optimizer=Adam(dual_attention.parameters(), lr=0.004),
+        optimizer=optimizer,
+        scheduler=scheduler,
         dataset=dataset,
-        loss_function=Loss().to(device),
+        loss_function=Loss().to(device)        
     )
 
     trainer.train_and_validate(EPOCHS=20)
