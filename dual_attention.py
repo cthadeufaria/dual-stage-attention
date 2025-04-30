@@ -8,7 +8,7 @@ from cross_feature_attention import CrossFeatureAttention
 
 
 class DualAttention(nn.Module):
-    def __init__(self, device):
+    def __init__(self, device, padding):
         super(DualAttention, self).__init__()
         self.device = device
 
@@ -19,21 +19,18 @@ class DualAttention(nn.Module):
             'str_A': Simple1DCNN(),
             'str_B': Group1DCNN(),
             'cfa': CrossFeatureAttention(),
-            'ltr_A': LongTimeRegression(1),
-            'ltr_B': LongTimeRegression(2),
+            'ltr_A': LongTimeRegression(padding=padding, num_layers=1),
+            'ltr_B': LongTimeRegression(padding=padding, num_layers=2),
             'ff': FeatureFusion(),
         })
 
         self.to(device)
-
-        self.modules_dict['backbone'] = self.modules_dict['backbone'].to('cpu')
 
     def forward(self, x):
         video_content_inputs, qos_features = x
 
         # Video content sub-network forward pass.
         video_content_features = self.modules_dict['backbone'](video_content_inputs)
-        video_content_features = video_content_features.to(self.device)
         
         downsampled_features = self.modules_dict['fc1'](video_content_features)
         temporal_reasoning_features = self.modules_dict['str_A'](downsampled_features)
