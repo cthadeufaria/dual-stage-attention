@@ -18,7 +18,8 @@ def main():
     print(f"Device set to: {device}")
 
     dataset = VideoDataset('./datasets/LIVE_NFLX_Plus')
-    dual_attention = DualAttention(device,dataset.max_duration)
+
+    dual_attention = DualAttention(device, dataset.max_duration)
 
     optimizer=Adam(dual_attention.parameters(), lr=5e-4)
     scheduler = ExponentialLR(optimizer, gamma=0.5)

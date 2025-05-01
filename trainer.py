@@ -28,23 +28,24 @@ class Trainer:
         print('Validation set has {} instances'.format(len(validation_dataset)))
 
         self.training_dataloader = DataLoader(
-            training_dataset, 
-            batch_size=1, 
-            shuffle=True, 
+            training_dataset,
+            batch_size=1,
+            shuffle=True,
             collate_fn=self.collate_function,
+            # num_workers=32,
         )
         self.validation_dataloader = DataLoader(
             validation_dataset, 
             batch_size=1,
-            shuffle=False, 
+            shuffle=False,
             collate_fn=self.collate_function,
+            # num_workers=32,
         )
 
     def collate_function(self, batch: list) -> list:
         return [self.get(data) for data in batch]
 
     def get(self, data):
-        # video_content_inputs = data['video_content']  # flag: cpu version
         video_content_inputs = [
             [a[0].to(self.device), a[1].to(self.device)] if type(a) == list else a.to(self.device) for a in data['video_content']
         ]
@@ -59,9 +60,21 @@ class Trainer:
 
         return inputs, labels
 
+    def cache(self, dataloader):
+        print('Caching training data...')
+        time = datetime.now()
+        for _ in dataloader:
+            print('Cached data size:', len(dataloader.dataset.dataset.cached_data))
+        print('Data caching elapsed time:', datetime.now() - time)
+
+        dataloader.dataset.dataset.set_use_cache()
+        dataloader.num_workers = 8
+
     def train_step(self, epoch, tb_writer):
         self.model.train(True)
         running_loss = 0.
+
+        # self.cache(self.training_dataloader)
 
         for i, data in enumerate(self.training_dataloader):
             print('Processing training for batch', (i + 1))
@@ -80,11 +93,9 @@ class Trainer:
                     outputs.append(self.model(input))
 
                 loss = self.loss_function(outputs, labels)
-                # loss.backward()
 
             self.scaler.scale(loss).backward()
 
-            # self.optimizer.step()
             self.scaler.step(self.optimizer)
             self.scaler.update()
 
@@ -100,6 +111,8 @@ class Trainer:
     def val_step(self, epoch, tb_writer):
         self.model.eval()
         running_loss = 0.
+
+        # self.cache(self.validation_dataloader)
 
         with torch.no_grad():
             for i, data in enumerate(self.validation_dataloader):
