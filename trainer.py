@@ -32,14 +32,12 @@ class Trainer:
             batch_size=1,
             shuffle=True,
             collate_fn=self.collate_function,
-            # num_workers=32,
         )
         self.validation_dataloader = DataLoader(
             validation_dataset, 
             batch_size=1,
             shuffle=False,
             collate_fn=self.collate_function,
-            # num_workers=32,
         )
 
     def collate_function(self, batch: list) -> list:
@@ -124,11 +122,13 @@ class Trainer:
                     value[1] for value in data
                 ]
 
-                outputs = []
-                for input in inputs:  # TODO: How to pass batched inputs to the model? Check model input/output shapes.
-                    outputs.append(self.model(input))
+                with autocast('cuda'):
+                    outputs = []
+                    for input in inputs:
+                        outputs.append(self.model(input))
 
-                loss = self.loss_function(outputs, labels)
+                    loss = self.loss_function(outputs, labels)
+
                 running_loss += loss.item()
                 avg_loss = running_loss / (i + 1)
                 print('Batch {} validation average loss: {} --------------------'.format(i + 1, avg_loss))
