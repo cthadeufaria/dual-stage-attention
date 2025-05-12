@@ -22,7 +22,7 @@ def main():
     dual_attention = DualAttention(device, dataset.max_duration)
 
     optimizer=Adam(dual_attention.parameters(), lr=5e-4)
-    scheduler = ExponentialLR(optimizer, gamma=0.5)
+    scheduler = ExponentialLR(optimizer, gamma=0.98)
 
     trainer = Trainer(
         model=dual_attention,
@@ -31,8 +31,8 @@ def main():
         dataset=dataset,
         loss_function=Loss().to(device)        
     )
-
-    trainer.train_and_validate(EPOCHS=20)
+    
+    trainer.train_and_validate(EPOCHS=30)
 
 
 if __name__ == "__main__":

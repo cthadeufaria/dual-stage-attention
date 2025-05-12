@@ -141,7 +141,8 @@ class Trainer:
     def train_and_validate(self, EPOCHS):
         print('Starting training...')
 
-        timestamp = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+        now = datetime.now()
+        timestamp = now.strftime('%Y-%m-%d_%H:%M:%S')
         writer = SummaryWriter('./runs/summaries/DUAL_ATTENTION_LIVENFLX_II_SUMMARY_{}'.format(timestamp))
         best_loss = float('inf')
 
@@ -171,7 +172,7 @@ class Trainer:
 
             self.scheduler.step()
 
-        print('Training and validation finished')
-        delta = datetime.now() - timestamp
+        print('Training and validation finished!')
+        delta = datetime.now() - now
         print(f"Elapsed time: {delta}")
         writer.close()
