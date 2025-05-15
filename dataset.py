@@ -1,5 +1,5 @@
 import os, glob, math, torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from transforms import Transform
 from pytorchvideo.data.encoded_video import EncodedVideo
 from config import Config as cfg
