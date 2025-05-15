@@ -19,9 +19,9 @@ class VideoDataset(Dataset):
             Transform().resnet_transform,
         ]
         self.root_dir = root_dir
-        pkl_files = glob.glob(
+        pkl_files = sorted(glob.glob(
             os.path.join(self.root_dir, 'Dataset_Information/Pkl_Files/*.pkl')
-        )
+        ))
         self.annotations = load_annotations(pkl_files)
         self.normalization_parameters = qos_norm_params(self.annotations), labels_norm_params(self.annotations)
         self.max_duration = math.ceil(max([l['video_duration_sec'] for l in self.annotations]))
