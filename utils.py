@@ -89,6 +89,24 @@ def qos_norm_params(annotations):
     
     return max_qos, min_qos
 
+def collate_function(batch):
+    return [get(data) for data in batch]
+
+def get(data):
+    video_content_inputs = [
+        [a[0], a[1]] if type(a) == list else a for a in data['video_content']
+    ]
+
+    qos_features = data['qos']
+
+    overall_labels = data['overall_QoE']
+    continuous_labels = data['continuous_QoE']
+
+    inputs = [video_content_inputs, qos_features]
+    labels = [overall_labels, continuous_labels]
+
+    return inputs, labels
+
 def get_qos_features(annotation):
     """
     Returns the QoS features for each video.

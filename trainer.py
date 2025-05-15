@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler
 from torch import autocast
+from utils import collate_function
 
 
 class Trainer:
@@ -31,48 +32,18 @@ class Trainer:
             training_dataset,
             batch_size=1,
             shuffle=True,
-            collate_fn=self.collate_function,
+            collate_fn=collate_function,
         )
         self.validation_dataloader = DataLoader(
             validation_dataset, 
             batch_size=1,
             shuffle=False,
-            collate_fn=self.collate_function,
+            collate_fn=collate_function,
         )
-
-    def collate_function(self, batch: list) -> list:
-        return [self.get(data) for data in batch]
-
-    def get(self, data):
-        video_content_inputs = [
-            [a[0].to(self.device), a[1].to(self.device)] if type(a) == list else a.to(self.device) for a in data['video_content']
-        ]
-
-        qos_features = data['qos'].to(self.device)
-
-        overall_labels = data['overall_QoE'].to(self.device)
-        continuous_labels = data['continuous_QoE'].to(self.device)
-
-        inputs = [video_content_inputs, qos_features]
-        labels = [overall_labels, continuous_labels]
-
-        return inputs, labels
-
-    def cache(self, dataloader):
-        print('Caching training data...')
-        time = datetime.now()
-        for _ in dataloader:
-            print('Cached data size:', len(dataloader.dataset.dataset.cached_data))
-        print('Data caching elapsed time:', datetime.now() - time)
-
-        dataloader.dataset.dataset.set_use_cache()
-        dataloader.num_workers = 8
 
     def train_step(self, epoch, tb_writer):
         self.model.train(True)
         running_loss = 0.
-
-        # self.cache(self.training_dataloader)
 
         for i, data in enumerate(self.training_dataloader):
             print('Processing training for batch', (i + 1))
@@ -109,8 +80,6 @@ class Trainer:
     def val_step(self, epoch, tb_writer):
         self.model.eval()
         running_loss = 0.
-
-        # self.cache(self.validation_dataloader)
 
         with torch.no_grad():
             for i, data in enumerate(self.validation_dataloader):
@@ -156,7 +125,6 @@ class Trainer:
             avg_train_loss = self.train_step(epoch, writer)
             avg_val_loss = self.val_step(epoch, writer)
 
-            # Log
             writer.add_scalars('Training vs. Validation Loss',
                             { 'Training' : avg_train_loss, 'Validation' : avg_val_loss },
                             epoch + 1)
@@ -164,7 +132,7 @@ class Trainer:
 
             if avg_val_loss < best_loss:
                 best_loss = avg_val_loss
-                model_path = './runs/models/DUAL_ATTENTION_LIVENFLX_II_{}_EPOCH_{}'.format(timestamp, epoch)
+                model_path = './runs/models/state_dict/DUAL_ATTENTION_LIVENFLX_II_{}_EPOCH_{}'.format(timestamp, epoch)
                 torch.save(self.model.state_dict(), model_path)
                 print('Model saved to', model_path)
 
