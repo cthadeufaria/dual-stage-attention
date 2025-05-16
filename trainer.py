@@ -31,7 +31,7 @@ class Trainer:
         self.training_dataloader = DataLoader(
             training_dataset,
             batch_size=1,
-            shuffle=True,  # change to True
+            shuffle=True,
             collate_fn=collate_function,
         )
         self.validation_dataloader = DataLoader(

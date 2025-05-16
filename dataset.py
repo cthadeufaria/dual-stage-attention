@@ -95,7 +95,7 @@ class PickleDataset(VideoDataset):
         super().__init__(root_dir)
         self.directory = os.path.join(root_dir, 'assets_cached')
         self.dataset = VideoDataset(root_dir)
-        self.cache_dataset()
+        # self.cache_dataset()
 
     def cache_dataset(self):
         print("Caching dataset...")
@@ -116,11 +116,11 @@ class PickleDataset(VideoDataset):
                 print("Video", i, "already cached")
 
     def __len__(self):
-        return len(glob.glob(self.directory + '/*.pt'))
+        return len(self.dataset)
 
     def __getitem__(self, idx):
         filename = os.path.join(self.directory, f"{idx}.pt")
         if os.path.exists(filename):
             return torch.load(filename)
         else:
-            raise FileNotFoundError(f"Video {filename} not found. Please cache the dataset first.")
+            return self.dataset[idx]
