@@ -43,7 +43,7 @@ class ResNet50(nn.Module):
         self.avgpool = AdaptiveAvgPool2d((1, 1))
 
         self.activation = {}
-    
+
     def getActivation(self, name):
         """Hook function to extract the output of a layer in the model."""
         def hook(model, input, output):
@@ -118,6 +118,8 @@ class SlowFast(nn.Module):
 
     def forward(self, x):
         with torch.inference_mode():
+            if type(x) == tuple:
+                x = list(x)
             x[0] = torch.stack(split(x[0], 8, dim=1))  # -> [B, C, T_slow, H, W]
             x[1] = torch.stack(split(x[1], 32, dim=1))  # -> [B, C, T_fast, H, W]
 
