@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 from transforms import Transform
 from pytorchvideo.data.encoded_video import EncodedVideo
 from config import Config as cfg
-from utils import load_annotations, batch_tensor, get_qos_features, qos_norm_params, labels_norm_params, get
+from utils import load_annotations, batch_tensor, get_qos_features, qos_norm_params, labels_norm_params
 
 
 class VideoDataset(Dataset):
@@ -108,7 +108,7 @@ class PickleDataset(VideoDataset):
         for i in range(self.__len__()):
             if i not in cached:
                 filename = os.path.join(self.directory,  f"{i}.pt")
-                data = [get(d) for d in [self.dataset[i]]]
+                data = self.dataset[i]
                 torch.save(data, filename)
                 print("Video", i, "cached to", filename)
 
@@ -116,7 +116,7 @@ class PickleDataset(VideoDataset):
                 print("Video", i, "already cached")
 
     def __len__(self):
-        return len(self.dataset.annotations)
+        return len(glob.glob(self.directory + '/*.pt'))
 
     def __getitem__(self, idx):
         filename = os.path.join(self.directory, f"{idx}.pt")
