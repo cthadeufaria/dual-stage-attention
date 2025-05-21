@@ -2,6 +2,7 @@ import pickle
 import torch
 import math
 import numpy as np
+from config import Config as cfg
 
 
 def debug_cuda():
@@ -93,15 +94,13 @@ def collate_function(batch):
     return [get(data) for data in batch]
 
 def get(data):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     video_content_inputs = [
-        [a[0].to(device), a[1].to(device)] if type(a) == list else a.to(device) for a in data['video_content']
+        [a[0].to(cfg.device), a[1].to(cfg.device)] if type(a) == list else a.to(cfg.device) for a in data['video_content']
     ]
-    qos_features = data['qos'].to(device)
+    qos_features = data['qos'].to(cfg.device)
 
-    overall_labels = data['overall_QoE'].to(device)
-    continuous_labels = data['continuous_QoE'].to(device)
+    overall_labels = data['overall_QoE'].to(cfg.device)
+    continuous_labels = data['continuous_QoE'].to(cfg.device)
 
     inputs = [video_content_inputs, qos_features]
     labels = [overall_labels, continuous_labels]

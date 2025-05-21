@@ -4,6 +4,8 @@ from transforms import Transform
 from pytorchvideo.data.encoded_video import EncodedVideo
 from config import Config as cfg
 from utils import load_annotations, batch_tensor, get_qos_features, qos_norm_params, labels_norm_params
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*?.*.*?")
 
 
 class VideoDataset(Dataset):
@@ -91,11 +93,12 @@ class VideoDataset(Dataset):
 
 
 class PickleDataset(VideoDataset):
-    def __init__(self, root_dir):
+    def __init__(self, root_dir, cache=False):
         super().__init__(root_dir)
         self.directory = os.path.join(root_dir, 'assets_cached')
         self.dataset = VideoDataset(root_dir)
-        # self.cache_dataset()
+        if cache:
+            self.cache_dataset()
 
     def cache_dataset(self):
         print("Caching dataset...")

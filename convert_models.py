@@ -3,6 +3,7 @@ import os
 from glob import glob
 from dual_attention import DualAttention
 from dataset import VideoDataset
+from config import Config as cfg
 
 
 def main():
@@ -10,7 +11,7 @@ def main():
     Main function to convert PyTorch state dict model to TorchScript.
     Considerations about tracing and scripting: https://ppwwyyxx.com/blog/2022/TorchScript-Tracing-vs-Scripting/
     """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = cfg.device
     print(f"Device set to: {device}")
 
     dataset = VideoDataset('./datasets/LIVE_NFLX_Plus')
