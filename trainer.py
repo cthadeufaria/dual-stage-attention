@@ -1,7 +1,6 @@
 import torch
 from datetime import datetime
 from torch.utils.data import DataLoader, random_split
-from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler
 from torch import autocast
 from utils import collate_function
@@ -110,12 +109,10 @@ class Trainer:
 
         return avg_loss
 
-    def train_and_validate(self, EPOCHS):
+    def train_and_validate(self, EPOCHS, writer, timestamp):
         print('Starting training...')
 
         now = datetime.now()
-        timestamp = now.strftime('%Y-%m-%d_%H:%M:%S')
-        writer = SummaryWriter('./runs/summaries/DUAL_ATTENTION_LIVENFLX_II_SUMMARY_{}'.format(timestamp))
         best_loss = float('inf')
 
         print('Timestamp:', timestamp)
