@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tch = "0.17.0"  # Add tch-rs for PyTorch support in Rust
+tch = "0.18.1"  # Add tch-rs for PyTorch support in Rust
