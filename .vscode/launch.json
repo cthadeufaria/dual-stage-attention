@@ -1,7 +1,4 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
 
@@ -11,7 +8,11 @@
             "name": "Rust_Debug",
             "program": "${workspaceFolder}/inference/target/debug/dual-stage-attention_inference",
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}/inference",
+            "env": {
+                "LIBTORCH_USE_PYTORCH": "1",
+                "LD_LIBRARY_PATH": "/home/dev/repos/dual-stage-attention/.venv/lib/python3.10/site-packages/torch/lib:${env:LD_LIBRARY_PATH}"
+            },
         }
     ]
 }
