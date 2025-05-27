@@ -175,6 +175,7 @@ dependencies = [
 name = "dual-stage-attention_inference"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "tch",
 ]
 

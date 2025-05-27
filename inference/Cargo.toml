@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 tch = "0.18.1"  # Add tch-rs for PyTorch support in Rust
+libc = "0.2.172"
