@@ -1,5 +1,5 @@
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from datetime import datetime
 from dataset import PickleDataset
 from dual_attention import DualAttention
@@ -22,12 +22,13 @@ def main():
 
     writer = SummaryWriter('./runs/logs/DUAL_ATTENTION_LIVENFLX_II')
 
-    dataset = PickleDataset('./datasets/LIVE_NFLX_Plus')
+    dataset = PickleDataset('./datasets/LIVE_NFLX_Plus', cache=False)
 
     dual_attention = DualAttention(device, dataset.dataset.max_duration)
 
     optimizer=AdamW(dual_attention.parameters(), lr=5e-4, weight_decay=1e-4)
-    scheduler = ExponentialLR(optimizer, gamma=0.98)
+    # scheduler = ExponentialLR(optimizer, gamma=0.935)
+    scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
 
     trainer = Trainer(
         model=dual_attention,
