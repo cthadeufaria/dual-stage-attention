@@ -10,7 +10,7 @@ def main():
     Main function to convert PyTorch state dict model to TorchScript.
     Considerations about tracing and scripting: https://ppwwyyxx.com/blog/2022/TorchScript-Tracing-vs-Scripting/
     """
-    device = torch.device('cuda:1') if torch.cuda.is_available() else torch.device('cpu')
+    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     print(f"Device set to: {device}")
 
     dataset = VideoDataset('./datasets/LIVE_NFLX_Plus')
@@ -19,12 +19,12 @@ def main():
         example_input = (
             (
                 (
-                    torch.randn(3, 216, 224, 224).to(device), 
-                    torch.randn(3, 864, 224, 224).to(device)
+                    torch.randn(3, 80, 224, 224).to(device), 
+                    torch.randn(3, 320, 224, 224).to(device)
                 ), 
-                torch.randn(3, 27, 1080, 1920).to(device)
+                torch.randn(3, 10, 1080, 1920).to(device)
             ), 
-            torch.randn(27, 4).to(device)
+            torch.randn(10, 4).to(device)
         )
 
     models_paths = glob('./runs/models/state_dict/*')
