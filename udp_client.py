@@ -23,10 +23,9 @@ class UDPClient:
             if not ret:
                 break
 
-            frame = imutils.resize(frame, width=400)
+            frame = cv2.resize(frame, (224, 224), interpolation=cv2.INTER_LINEAR)
             _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
-            data = base64.b64encode(buffer)
-            self.send(data)
+            self.send(buffer.tobytes())
 
 
 def main():
@@ -34,8 +33,6 @@ def main():
 
     path = "/home/dev/repos/dual-stage-attention/datasets/LIVE_NFLX_Plus/assets_mp4_individual/AirShow_HuangBufferBasedAdaptor_Trace_0.mp4"
     client.send_video(path)
-
-
 
 
 if __name__ == "__main__":

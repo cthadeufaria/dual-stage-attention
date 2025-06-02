@@ -1,4 +1,4 @@
-import socket, cv2, base64
+import socket, cv2
 import numpy as np
 
 
@@ -29,7 +29,7 @@ class UDPServer:
         """Receive video frames from the UDP socket."""
         while True:
             data = self.receive()
-            data = base64.b64decode(data, validate=True)
+            # data = base64.b64decode(data, validate=True)
             data = np.frombuffer(data, np.uint8)
 
             frame = cv2.imdecode(data, cv2.IMREAD_COLOR)
