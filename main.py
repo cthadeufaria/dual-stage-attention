@@ -26,9 +26,9 @@ def main():
 
     dual_attention = DualAttention(device, dataset.dataset.max_duration)
 
-    optimizer=AdamW(dual_attention.parameters(), lr=5e-4, weight_decay=1e-4)
-    # scheduler = ExponentialLR(optimizer, gamma=0.935)
-    scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
+    optimizer=AdamW(dual_attention.parameters(), lr=5e-4, weight_decay=1e-2)
+    scheduler = ExponentialLR(optimizer, gamma=0.935)
+    # scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
 
     trainer = Trainer(
         model=dual_attention,
