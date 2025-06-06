@@ -1,11 +1,20 @@
 use anyhow::{anyhow, Result};
 use gstreamer::prelude::*;
 use gstreamer::{ElementFactory, Pipeline, State};
-use gstreamer_app::AppSink; // Required for appsink functionality
-use gstreamer_app::prelude::*; // For AppSink methods
+use gstreamer_app::AppSink;
+use gstreamer_app::prelude::*;
+use tch::{
+    Device, IValue, Kind, Tensor
+};
+use std::sync::{Arc, Mutex};
+use std::collections::VecDeque;
+use std::time::Instant;
 
-pub fn start() -> Result<()> {
-    let pipeline: Pipeline = create_server_pipeline()?;
+use crate::model_handler::ModelHandler;
+
+
+pub fn start(model: Arc<ModelHandler>) -> Result<()> {
+    let pipeline: Pipeline = create_server_pipeline(model)?;
     pipeline.set_state(State::Playing)?;
 
     // Bus message handling
@@ -29,7 +38,7 @@ pub fn start() -> Result<()> {
     Ok(())
 }
 
-fn create_server_pipeline() -> Result<Pipeline> {
+fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
     gstreamer::init()?;
     let pipeline = Pipeline::new(Some("udp_server_pipeline"));
 
@@ -81,35 +90,166 @@ fn create_server_pipeline() -> Result<Pipeline> {
         anyhow!("Failed to downcast to AppSink")
     )?;
 
+    let frame_buffer = Arc::new(Mutex::new(VecDeque::with_capacity(320)));
+    let buffer_clone = Arc::clone(&frame_buffer);
+
+    let mean = Tensor::from_slice(&[0.485, 0.456, 0.406]).view([3, 1, 1]);
+    let std = Tensor::from_slice(&[0.229, 0.224, 0.225]).view([3, 1, 1]);
+
+    let mut frame_count = 0;
+    let model_clone: Arc<ModelHandler> = Arc::clone(&model);
+
     appsink.set_callbacks(
         gstreamer_app::AppSinkCallbacks::builder()
             // Called when a new sample is ready
             .new_sample(move |appsink| {
-                // Try to pull the sample
-                let sample = appsink.pull_sample().map_err(|_| {
-                    eprintln!("Failed to pull sample");
-                    gstreamer::FlowError::Error
-                })?;
-
-                // Get the buffer from the sample
-                let buffer = sample.buffer().ok_or_else(|| {
-                    eprintln!("Sample has no buffer");
-                    gstreamer::FlowError::Error
-                })?;
-
-                // Print basic buffer info
-                println!("Received buffer of size: {} bytes", buffer.size());
-
-                // Access buffer data
-                let map = buffer.map_readable().map_err(|_| {
-                    eprintln!("Failed to map buffer");
-                    gstreamer::FlowError::Error
-                })?;
-
-                // Print first 3 bytes (RGB values)
+                let sample = appsink.pull_sample().map_err(|_| gstreamer::FlowError::Error)?;
+                let buffer = sample.buffer().ok_or(gstreamer::FlowError::Error)?;
+                let map = buffer.map_readable().map_err(|_| gstreamer::FlowError::Error)?;
                 let data = map.as_slice();
-                if data.len() >= 3 {
-                    println!("First pixel RGB: {:?}", &data[0..3]);
+
+                let caps = sample.caps().ok_or(gstreamer::FlowError::Error)?;
+                let s = caps.structure(0).ok_or(gstreamer::FlowError::Error)?;
+
+                let height = s.get::<i32>("height")
+                    .map_err(|_| gstreamer::FlowError::Error)?;
+                let width = s.get::<i32>("width")
+                    .map_err(|_| gstreamer::FlowError::Error)?;
+
+                let tensor = Tensor::from_slice(data)
+                    .to_kind(Kind::Uint8)
+                    .reshape(&[height as i64, width as i64, 3])
+                    .permute(&[2, 0, 1]); // (C, H, W)
+
+                let normalized = (tensor.to_kind(Kind::Float) / 255.0 - &mean) / &std;
+
+                static mut LAST_STALL_TIME: Option<Instant> = None;
+                static mut LAST_BITRATE: f32 = 3000.0; // kbps
+                static mut LAST_EVENT_TIME: Option<Instant> = None;
+
+                let mut qos_features: Vec<[f32; 4]> = vec![];
+
+                let mut buf = buffer_clone.lock().unwrap();
+                if buf.len() == 320 {
+                    buf.pop_front();
+                }
+                buf.push_back(normalized.shallow_clone());
+                println!("Buffer size: {}", buf.len());
+
+                println!("Received frame number: {}", frame_count);
+                frame_count += 1;
+                if buf.len() >= 320 && frame_count % 32 == 0 {
+                    let start = Instant::now(); // ⏱️ Start timing
+
+                    let slow_frames: Vec<_> = buf.iter()
+                        .rev()               // Start from newest
+                        .step_by(4)          // Pick every 4th going backwards
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .rev()               // Restore chronological order
+                        .map(|t| t.shallow_clone())
+                        .collect();
+                    let slow_stacked = Tensor::stack(&slow_frames, 1); // [3, 80, 224, 224]
+                    let tensor1 = slow_stacked.upsample_bilinear2d(
+                        &[224, 224], false, None, None
+                    );
+
+                    let duration = start.elapsed(); // ⏱️ Stop timing
+                    println!("Preprocessing + batching took: {:.2?}", duration);
+
+                    let fast_frames: Vec<_> = buf.iter()
+                        .step_by(1)
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .map(|t| t.shallow_clone())
+                        .collect();
+
+                    let fast_stacked = Tensor::stack(&fast_frames, 1);
+                    let tensor2 = fast_stacked.upsample_bilinear2d(
+                        &[224, 224], false, None, None
+                    );
+
+                    let duration = start.elapsed(); // ⏱️ Stop timing
+                    println!("Preprocessing + batching took: {:.2?}", duration);
+
+                    let resnet_frames: Vec<_> = buf.iter()
+                        .rev()
+                        .step_by(32)
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .rev()
+                        .map(|t| t.shallow_clone())
+                        .collect();
+
+                    let tensor3 = Tensor::stack(&resnet_frames, 1);
+
+                    let duration = start.elapsed(); // ⏱️ Stop timing
+                    println!("Preprocessing + batching took: {:.2?}", duration);
+
+                    for _i in 0..10 {
+                        // Simulated Playback Indicator: random stalling between 0 and 0.5s
+                        let stall_duration = if rand::random::<f32>() < 0.2 {
+                            // 20% chance of a stall
+                            let d = rand::random::<f32>() * 0.5;
+                            unsafe { LAST_STALL_TIME = Some(Instant::now()); }
+                            d
+                        } else {
+                            0.0
+                        };
+
+                        // Simulated bitrate between 1000 and 5000 kbps
+                        let new_bitrate: f32 = 1000.0 + rand::random::<f32>() * 4000.0;
+                        let log_bitrate = new_bitrate.ln(); // RQ (log scale)
+
+                        // Bitrate Switch (BS): only if drop from last
+                        let bitrate_switch = unsafe {
+                            let diff = LAST_BITRATE - new_bitrate;
+                            let bs = if diff > 0.0 { diff.abs() } else { 0.0 };
+                            LAST_BITRATE = new_bitrate;
+                            bs
+                        };
+
+                        // TRF: Time since last drop or stall
+                        let trf = unsafe {
+                            let now = Instant::now();
+                            let elapsed = if let Some(t) = LAST_EVENT_TIME {
+                                now.duration_since(t).as_secs_f32()
+                            } else {
+                                0.0
+                            };
+
+                            if stall_duration > 0.0 || bitrate_switch > 0.0 {
+                                LAST_EVENT_TIME = Some(now);
+                            }
+
+                            let normalized_trf = elapsed / 10.0; // Assume 10s video length for normalization
+                            normalized_trf
+                        };
+
+                        qos_features.push([stall_duration, trf, log_bitrate, bitrate_switch]);
+                    }
+
+                    let tensor4 = Tensor::from_slice(&qos_features.concat())
+                        .reshape(&[10, 4])
+                        .to_kind(Kind::Float);
+
+                    println!("Slow pathway input shape: {:?}", tensor1.size());
+                    println!("Fast pathway input shape: {:?}", tensor2.size());
+                    println!("ResNet pathway input shape: {:?}", tensor3.size());
+                    println!("QoS features shape: {:?}", tensor4.size());
+
+                    let duration = start.elapsed(); // ⏱️ Stop timing
+                    println!("Preprocessing + batching took: {:.2?}", duration);
+
+                    let output = match model_clone.forward(tensor1, tensor2, tensor3, tensor4) {
+                        Ok(out) => out,
+                        Err(e) => {
+                            eprintln!("Inference error: {}", e);
+                            return Ok(gstreamer::FlowSuccess::Ok);  // or skip this frame gracefully
+                        }
+                    };
+
+                    println!("Inference output: {:?}", output);
                 }
 
                 Ok(gstreamer::FlowSuccess::Ok)

@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tch = "0.18.1"  # Add tch-rs for PyTorch support in Rust
+tch = "0.18.1"
 libc = "0.2.172"
-
 gstreamer = { version = "0.20", features = ["v1_20"] }
 gstreamer-app = "0.20"
 anyhow = "1.0"
-
+rand = "0.8"
 glib = "0.20.10"
+rayon = "1.10.0"
