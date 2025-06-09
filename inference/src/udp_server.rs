@@ -58,6 +58,12 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
             .build())
         .build()?;
 
+    let queue = ElementFactory::make("queue")
+        .property("max-size-buffers", 1000u32)  // number of frames
+        .property("max-size-bytes", 0u32)       // 0 = unlimited
+        .property("max-size-time", 0u64)        // 0 = unlimited
+        .build()?;
+
     // Create and configure appsink
     let appsink = ElementFactory::make("appsink")
         .property("emit-signals", true) // Enable signals
@@ -71,6 +77,7 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
         &jpegdec, 
         &videoconvert,
         &capsfilter,
+        &queue,
         &appsink
     ])?;
 
@@ -79,6 +86,7 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
         &udpsrc,
         &jpegparse,
         &jpegdec,
+        &queue,
         &videoconvert,
         &capsfilter,
         &appsink
@@ -136,9 +144,9 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                 println!("Buffer size: {}", buf.len());
 
                 println!("Received frame number: {}", frame_count);
-                frame_count += 1;
-                if buf.len() >= 320 && frame_count % 32 == 0 {
-                    let start = Instant::now(); // ⏱️ Start timing
+                frame_count += 1;  // TODO: Use tokio to handle async frame processing.
+                if buf.len() >= 320 && frame_count % 32 == 0 {  // TODO: Adapt the logic to update the tensors with only one second of data each iteration.
+                    let start = Instant::now();
 
                     let slow_frames: Vec<_> = buf.iter()
                         .rev()               // Start from newest
@@ -153,23 +161,16 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                         &[224, 224], false, None, None
                     );
 
-                    let duration = start.elapsed(); // ⏱️ Stop timing
-                    println!("Preprocessing + batching took: {:.2?}", duration);
-
-                    let fast_frames: Vec<_> = buf.iter()
-                        .step_by(1)
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .map(|t| t.shallow_clone())
+                    let fast_frames: Vec<_> = buf
+                        .iter()
+                        .map(|t| t.unsqueeze(1))
                         .collect();
 
-                    let fast_stacked = Tensor::stack(&fast_frames, 1);
+                    let fast_stacked = Tensor::cat(&fast_frames, 1);
+
                     let tensor2 = fast_stacked.upsample_bilinear2d(
                         &[224, 224], false, None, None
                     );
-
-                    let duration = start.elapsed(); // ⏱️ Stop timing
-                    println!("Preprocessing + batching took: {:.2?}", duration);
 
                     let resnet_frames: Vec<_> = buf.iter()
                         .rev()
@@ -181,9 +182,6 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                         .collect();
 
                     let tensor3 = Tensor::stack(&resnet_frames, 1);
-
-                    let duration = start.elapsed(); // ⏱️ Stop timing
-                    println!("Preprocessing + batching took: {:.2?}", duration);
 
                     for _i in 0..10 {
                         // Simulated Playback Indicator: random stalling between 0 and 0.5s
@@ -237,7 +235,7 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                     println!("ResNet pathway input shape: {:?}", tensor3.size());
                     println!("QoS features shape: {:?}", tensor4.size());
 
-                    let duration = start.elapsed(); // ⏱️ Stop timing
+                    let duration = start.elapsed();
                     println!("Preprocessing + batching took: {:.2?}", duration);
 
                     let output = match model_clone.forward(tensor1, tensor2, tensor3, tensor4) {
