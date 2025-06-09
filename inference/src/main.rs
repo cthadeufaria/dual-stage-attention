@@ -1,12 +1,3 @@
-use tch::{
-    CModule, 
-    Device, 
-    Tensor, 
-    IValue, 
-    nn::VarStore,
-};
-use std::ffi::CString;
-use libc::dlopen;
 mod udp_server;
 mod model_handler;
 use model_handler::ModelHandler;

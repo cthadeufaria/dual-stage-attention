@@ -2,9 +2,8 @@ use anyhow::{anyhow, Result};
 use gstreamer::prelude::*;
 use gstreamer::{ElementFactory, Pipeline, State};
 use gstreamer_app::AppSink;
-use gstreamer_app::prelude::*;
 use tch::{
-    Device, IValue, Kind, Tensor
+    Kind, Tensor
 };
 use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;

@@ -25,7 +25,6 @@ impl ModelHandler {
             device
         )?;
 
-        // let model = CModule::load_on_device(model_path, device)?;
         Ok(Self { model, device })
     }
 
