@@ -20,9 +20,7 @@ def main():
     device = cfg.device
     print(f"Device set to: {device}")
 
-    writer = SummaryWriter('./runs/logs/DUAL_ATTENTION_LIVENFLX_II')
-
-    dataset = PickleDataset('./datasets/LIVE_NFLX_Plus', cache=False)
+    dataset = PickleDataset('./datasets/LIVE_NFLX_Plus', cache=cfg.cache)
 
     dual_attention = DualAttention(device, dataset.dataset.max_duration)
 

@@ -11,4 +11,4 @@ class Config:
     train = True
     load_model = False
     device = torch.device('cuda:1') if torch.cuda.is_available() else torch.device('cpu')
-    
+    cache = False
