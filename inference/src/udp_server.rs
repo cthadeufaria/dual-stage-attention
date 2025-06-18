@@ -99,12 +99,15 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
 
     let frame_buffer = Arc::new(Mutex::new(VecDeque::with_capacity(320)));
     let buffer_clone = Arc::clone(&frame_buffer);
+    let fast_stacked = Arc::new(Mutex::new(None::<Tensor>));  // Initially None
+    let fast_stacked_clone = Arc::clone(&fast_stacked);
 
     let mean = Tensor::from_slice(&[0.485, 0.456, 0.406]).view([3, 1, 1]);
     let std = Tensor::from_slice(&[0.229, 0.224, 0.225]).view([3, 1, 1]);
 
     let mut frame_count = 0;
     let model_clone: Arc<ModelHandler> = Arc::clone(&model);
+    let model_device = model_clone.device();
 
     appsink.set_callbacks(
         gstreamer_app::AppSinkCallbacks::builder()
@@ -148,29 +151,60 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                 if buf.len() >= 320 && frame_count % 32 == 0 {  // TODO: Adapt the logic to update the tensors with only one second of data each iteration.
                     let start = Instant::now();
 
+                    let this_time = Instant::now();
+
                     let slow_frames: Vec<_> = buf.iter()
                         .rev()               // Start from newest
                         .step_by(4)          // Pick every 4th going backwards
                         .collect::<Vec<_>>()
                         .into_iter()
                         .rev()               // Restore chronological order
-                        .map(|t| t.shallow_clone())
+                        .map(|t| t.shallow_clone().to_device(model_device))
                         .collect();
                     let slow_stacked = Tensor::stack(&slow_frames, 1); // [3, 80, 224, 224]
                     let tensor1 = slow_stacked.upsample_bilinear2d(
                         &[224, 224], false, None, None
                     );
 
-                    let fast_frames: Vec<_> = buf
-                        .iter()
-                        .map(|t| t.unsqueeze(1))
-                        .collect();
+                    println!("tensor 1 took: {:.2?}", this_time.elapsed());
 
-                    let fast_stacked = Tensor::cat(&fast_frames, 1);
+                    let this_time = Instant::now();
 
-                    let tensor2 = fast_stacked.upsample_bilinear2d(
+                    let mut fast_stacked_guard = fast_stacked_clone.lock().unwrap();
+                    if let Some(existing) = &mut *fast_stacked_guard {
+                        let new_frames: Vec<_> = buf
+                            .iter()
+                            .rev()
+                            .take(32) // Take newest 32 frames
+                            .map(|t| t.unsqueeze(1).to_device(model_device))
+                            .collect();
+
+                        let new_tensor = Tensor::cat(&new_frames, 1)
+                            .upsample_bilinear2d(&[224, 224], false, None, None); // [3, 32, 224, 224]
+                        let remaining_tensor = existing.narrow(1, 32, 288)
+                            .upsample_bilinear2d(&[224, 224], false, None, None); // [3, 288, 224, 224]
+
+                        let updated = Tensor::cat(&[&new_tensor, &remaining_tensor], 1); // [3, 320, 224, 224]
+
+                        *existing = updated;
+
+                    } else {
+                        let fast_frames: Vec<_> = buf
+                            .iter()
+                            .map(|t| t.unsqueeze(1).upsample_bilinear2d(
+                        &[224, 224], false, None, None
+                    ).to_device(model_device))
+                            .collect();
+                        *fast_stacked_guard = Some(Tensor::cat(&fast_frames, 1));
+                    }
+
+                    let tensor2 = fast_stacked_guard.as_ref().unwrap().upsample_bilinear2d(
                         &[224, 224], false, None, None
                     );
+
+                    println!("tensor 2 took: {:.2?}", this_time.elapsed());
+
+                    let this_time = Instant::now();
 
                     let resnet_frames: Vec<_> = buf.iter()
                         .rev()
@@ -178,10 +212,14 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                         .collect::<Vec<_>>()
                         .into_iter()
                         .rev()
-                        .map(|t| t.shallow_clone())
+                        .map(|t| t.shallow_clone().to_device(model_device))
                         .collect();
 
                     let tensor3 = Tensor::stack(&resnet_frames, 1);
+
+                    println!("tensor 3 took: {:.2?}", this_time.elapsed());
+
+                    let this_time = Instant::now();
 
                     for _i in 0..10 {
                         // Simulated Playback Indicator: random stalling between 0 and 0.5s
@@ -229,6 +267,8 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                     let tensor4 = Tensor::from_slice(&qos_features.concat())
                         .reshape(&[10, 4])
                         .to_kind(Kind::Float);
+
+                    println!("tensor 4 took: {:.2?}", this_time.elapsed());
 
                     println!("Slow pathway input shape: {:?}", tensor1.size());
                     println!("Fast pathway input shape: {:?}", tensor2.size());

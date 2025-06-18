@@ -45,4 +45,8 @@ impl ModelHandler {
         let output = self.model.forward_is(&[input])?;
         Ok(output)
     }
+
+    pub fn device(&self) -> Device {
+        self.device
+    }
 }
