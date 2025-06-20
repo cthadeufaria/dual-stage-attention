@@ -8,7 +8,7 @@ class Config:
     slowfast_sample_size = 32
     resnet_sample_size = 1
     T = 10  # seconds batch
-    train = True
-    load_model = False
+    train = False
+    load_model = True
     device = torch.device('cuda:1') if torch.cuda.is_available() else torch.device('cpu')
     cache = False

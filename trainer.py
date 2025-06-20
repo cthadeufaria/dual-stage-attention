@@ -7,6 +7,8 @@ from utils import collate_function
 from scipy.stats import pearsonr
 from scipy.stats import spearmanr
 import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
 
 
 class Trainer:
@@ -147,13 +149,18 @@ class Trainer:
 
     def get_performance_metrics(self):
         self.model.eval()
+        
         total_plcc = 0
         total_srcc = 0
         total_rmse = 0
 
+        plcc_list = []
+        srcc_list = []
+        rmse_list = []
+
         with torch.no_grad():
             for i, data in enumerate(self.validation_dataloader):
-                print('Processing validation for batch', (i + 1))
+                print('Processing performance metris for validation dataset on batch', (i + 1))
 
                 inputs, labels = [
                     value[0] for value in data
@@ -169,6 +176,15 @@ class Trainer:
                 y_pred = outputs[0][1].squeeze().cpu().numpy()
                 y_true = labels[0][1].cpu().numpy()
 
+                plt.plot(y_true, label='True Values', marker='o')
+                plt.plot(y_pred, label='Predicted Values', marker='x')
+                plt.title(f'Video {i + 1} - True vs Predicted Values')
+                plt.xlabel('Frame Index')
+                plt.ylabel('Continuous QoE')
+                plt.legend()
+                plt.savefig(f'./runs/plots/video_{i + 1}_true_vs_predicted.png')
+                plt.close()
+
                 plcc = pearsonr(y_pred, y_true)[0]
                 srcc = spearmanr(y_pred, y_true)[0]
                 rmse = np.sqrt(np.mean((y_pred - y_true) ** 2))
@@ -177,8 +193,17 @@ class Trainer:
                 total_srcc += srcc
                 total_rmse += rmse
 
+                plcc_list.append(plcc)
+                srcc_list.append(srcc)
+                rmse_list.append(rmse)
+
                 print(f"Video {i}: PLCC: {plcc}, SRCC: {srcc}, RMSE: {rmse}")
                 print(f"Average: PLCC: {total_plcc / (i + 1)}, SRCC: {total_srcc / (i + 1)}, RMSE: {total_rmse / (i + 1)}")
+
+        now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+        results = pd.DataFrame([plcc_list, srcc_list, rmse_list],
+                                index=['PLCC', 'SRCC', 'RMSE']).T
+        results.to_csv(f'./runs/results/DUAL_ATTENTION_LIVENFLX_II_{now}_results.csv', index=False)
 
     def load_model(self, model_path):
         """
