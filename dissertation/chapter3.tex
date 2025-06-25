@@ -6,9 +6,9 @@ This dissertation has progressed through the complete implementation, training, 
 
 The previously selected DSA-QoE architecture was first implemented and trained using the PyTorch framework in Python, exploiting its rich ecosystem for deep learning development and GPU-accelerated training. After achieving stable learning dynamics and acceptable generalization performance on a benchmark dataset, the trained model was serialized using TorchScript and deployed via the \texttt{tch-rs} crate into a Rust-native application layer designed for real-time media inference.
 
-The transition from experimental setup to operational deployment involved overcoming significant engineering challenges, including stream buffer management, multi-threaded tensor pre-processing under real-time constraints, and integration with GStreamer based video pipelines. These were addressed using Rust’s advanced safety guarantees—such as memory and concurrency correctness through the ownership model—and by leveraging its zero-cost abstractions for performance-critical sections.
+The transition from experimental setup to operational deployment involved overcoming significant engineering challenges, including stream buffer management, multi-threaded tensor pre-processing under real-time constraints, and integration with GStreamer based video pipelines. These were addressed using Rust's advanced safety guarantees—such as memory and concurrency correctness through the ownership model—and by leveraging its zero-cost abstractions for performance-critical sections.
 
-This chapter presents not only the architecture and development work, but also a complete exposition of the system’s final configuration, including real-time implementation details. The successful end-to-end execution of the inference pipeline in Rust, maintaining throughput close to source frame rate and latency within acceptable bounds, demonstrates the language’s applicability in high-performance AI-driven media systems. Furthermore, this implementation contributes empirical validation to ongoing academic discussions about the use of Rust in safety-critical AI workloads~\cite{fulton2022benefits, johansson2023transitioning, carnelos2025microflow}.
+This chapter presents not only the architecture and development work, but also a complete exposition of the system's final configuration, including real-time implementation details. The successful end-to-end execution of the inference pipeline in Rust, maintaining throughput close to source frame rate and latency within acceptable bounds, demonstrates the language's applicability in high-performance AI-driven media systems. Furthermore, this implementation contributes empirical validation to ongoing academic discussions about the use of Rust in safety-critical AI workloads~\cite{fulton2022benefits, johansson2023transitioning, carnelos2025microflow}.
 
 \section{Dataset Implementation and Preprocessing}
 
@@ -121,7 +121,7 @@ The motion feature pathway is implemented using the SlowFast architecture, acces
 
 In this implementation, we follow the sampling setup used in DSA-QoE: temporal stride $\tau=6$, channel ratio $\beta=8$, and speed ratio $\alpha=4$. These parameters control the spatial-temporal granularity of motion representation and ensure alignment with the perceptual distortions commonly found in streaming media.
 
-To extract motion features, the model registers forward hooks on each \texttt{ResNetBlock} module in the SlowFast architecture. A forward hook in PyTorch is a callback that intercepts the output of a layer during the forward pass. This allows intermediate activations to be stored without altering the model’s computation graph. Formally, the hook is defined via:
+To extract motion features, the model registers forward hooks on each \texttt{ResNetBlock} module in the SlowFast architecture. A forward hook in PyTorch is a callback that intercepts the output of a layer during the forward pass. This allows intermediate activations to be stored without altering the model's computation graph. Formally, the hook is defined via:
 \begin{quote}
 \texttt{layer.register\_forward\_hook(hook\_fn)}
 \end{quote}
@@ -209,7 +209,7 @@ The core of the module is a stack of $L$ Transformer Encoder layers, each consis
 \]
 with $H = 4$ attention heads and feedforward dimensionality $4D = 720$, using ReLU as the activation function.
 
-To ensure that predictions at time $t$ do not attend to future information $t' > t$, a causal mask is applied via PyTorch’s \texttt{generate\_square\_subsequent\_mask()} function. This constructs a triangular mask matrix $M \in \mathbb{R}^{T \times T}$ such that:
+To ensure that predictions at time $t$ do not attend to future information $t' > t$, a causal mask is applied via PyTorch's \texttt{generate\_square\_subsequent\_mask()} function. This constructs a triangular mask matrix $M \in \mathbb{R}^{T \times T}$ such that:
 \[
 M_{ij} =
 \begin{cases}
@@ -348,7 +348,7 @@ self.layer2 = nn.Linear(180, 1)
 This design aligns with perceptual frameworks like SSCQE ~\cite{alpert1991sscqe}, enabling smooth tracking of temporal variations in user experience.
 
 \bigskip
-In summary, the fully connected layers in this model do more than regression—they implement feature selection, nonlinear projection, and dynamic modality fusion. Their design is crucial to the model’s ability to unify the prediction of both continuous and overall QoE.
+In summary, the fully connected layers in this model do more than regression—they implement feature selection, nonlinear projection, and dynamic modality fusion. Their design is crucial to the model's ability to unify the prediction of both continuous and overall QoE.
 
 \section{Training and Evaluation Procedure}
 \label{sec:training-evaluation}
@@ -462,14 +462,14 @@ Thus, these absolute values offer a quantitative validation of the model's capab
 \section{Inference Media Pipeline in Rust}
 \label{sec:rust_pipeline}
 
-The deployment of the Dual-Stage Attention model within a real-time media pipeline necessitates a systems-level implementation that reconciles computational efficiency with operational reliability. Rust’s unique capabilities in memory safety, deterministic concurrency, and zero-cost abstractions position it as an ideal platform for this task, particularly given the latency-sensitive nature of streaming applications. This section details the Rust-based implementation of the inference pipeline, focusing on the integration of the serialized DSA-QoE model, GPU-accelerated inference, and the architecture designed for real-time media processing. The implementation directly addresses challenges highlighted in prior literature~\cite{fulton2022benefits, johansson2023transitioning, sharma2023rust}, including deterministic execution, memory safety in high-throughput environments, and efficient hardware utilization.
+The deployment of the Dual-Stage Attention model within a real-time media pipeline necessitates a systems-level implementation that reconciles computational efficiency with operational reliability. Rust's unique capabilities in memory safety, deterministic concurrency, and zero-cost abstractions position it as an ideal platform for this task, particularly given the latency-sensitive nature of streaming applications. This section details the Rust-based implementation of the inference pipeline, focusing on the integration of the serialized DSA-QoE model, GPU-accelerated inference, and the architecture designed for real-time media processing. The implementation directly addresses challenges highlighted in prior literature~\cite{fulton2022benefits, johansson2023transitioning, sharma2023rust}, including deterministic execution, memory safety in high-throughput environments, and efficient hardware utilization.
 
 \subsection{Inference Backend and Serialization}
 \label{sec:rust_serialization}
 
-The trained DSA-QoE model, implemented and optimized in PyTorch~\cite{paszke2019pytorch}, is serialized to TorchScript format for deployment in the Rust ecosystem. TorchScript provides a portable intermediate representation (IR) that decouples model execution from Python’s runtime, enabling integration with low-latency systems. As emphasized by Paszke et al.~\cite{paszke2019pytorch}, TorchScript preserves computational graph semantics while optimizing operators for inference, making it suitable for embedding in resource-constrained environments. In this work, serialization is performed after fine-tuning (Section~\ref{sec:training-evaluation}) using PyTorch’s \texttt{torch.jit.script} API, which captures model architecture, parameters, and forward logic into a single portable file (\texttt{.pt}).
+The trained DSA-QoE model, implemented and optimized in PyTorch~\cite{paszke2019pytorch}, is serialized to TorchScript format for deployment in the Rust ecosystem. TorchScript provides a portable intermediate representation (IR) that decouples model execution from Python's runtime, enabling integration with low-latency systems. As emphasized by Paszke et al.~\cite{paszke2019pytorch}, TorchScript preserves computational graph semantics while optimizing operators for inference, making it suitable for embedding in resource-constrained environments. In this work, serialization is performed after fine-tuning (Section~\ref{sec:training-evaluation}) using PyTorch's \texttt{torch.jit.script} API, which captures model architecture, parameters, and forward logic into a single portable file (\texttt{.pt}).
 
-The inference backend leverages \texttt{tch-rs} (Rust bindings for LibTorch) to deserialize and execute the TorchScript model. \texttt{tch-rs} provides idiomatic Rust interfaces for tensor operations and model execution while maintaining compatibility with PyTorch’s optimized kernels. The core components of the backend are encapsulated in the \texttt{ModelHandler} struct (Listing~\ref{lst:model_handler}), which handles:
+The inference backend leverages \texttt{tch-rs} (Rust bindings for LibTorch) to deserialize and execute the TorchScript model. \texttt{tch-rs} provides idiomatic Rust interfaces for tensor operations and model execution while maintaining compatibility with PyTorch's optimized kernels. The core components of the backend are encapsulated in the \texttt{ModelHandler} struct (Listing~\ref{lst:model_handler}), which handles:
 
 \begin{itemize}
   \item \textbf{Device Management:} Automatic detection and utilization of CUDA-capable GPUs via \texttt{Device::cuda\_if\_available()}, falling back to CPU execution if necessary.
@@ -502,11 +502,11 @@ impl ModelHandler {
     }
 }
 \end{minted}
-\caption{Excerpt from the \texttt{ModelHandler} implementation showing TorchScript deserialization and CUDA setup.}
+\caption{Excerpt from the ModelHandler implementation showing TorchScript deserialization and CUDA setup.}
 \label{lst:model_handler}
 \end{figure}
 
-A critical implementation challenge involves resolving CUDA dependencies when deploying in heterogeneous environments (e.g., Python virtual environments). The explicit loading of \texttt{libtorch\_cuda.so} via \texttt{dlopen} (Lines 10--11) ensures the CUDA runtime is visible to \texttt{tch-rs}, addressing linkage issues noted in embedded deployment scenarios~\cite{carnelos2025microflow, sharma2023rust}. This approach aligns with Fulton et al.’s observations~\cite{fulton2022benefits} on Rust’s interoperability with legacy C/C++ libraries.
+A critical implementation challenge involves resolving CUDA dependencies when deploying in heterogeneous environments (e.g., Python virtual environments). The explicit loading of \texttt{libtorch\_cuda.so} via \texttt{dlopen} (Lines 10--11) ensures the CUDA runtime is visible to \texttt{tch-rs}, addressing linkage issues noted in embedded deployment scenarios~\cite{carnelos2025microflow, sharma2023rust}. This approach aligns with Fulton et al.'s observations~\cite{fulton2022benefits} on Rust's interoperability with legacy C/C++ libraries.
 
 \subsection{Real-Time Video Ingestion and Processing}
 \label{subsec:realtime_ingestion}
@@ -588,7 +588,7 @@ appsink.set_callbacks(
 \label{lst:appsink_callbacks}
 \end{figure}
 
-Within this closure, the application captures all required computational context for real-time inference: a reference-counted, thread-safe handle to the TorchScript model responsible for prediction, a bounded ring buffer implemented via \texttt{Arc<Mutex<VecDeque>>} for temporal frame queuing, and precomputed normalization constants derived from ImageNet statistics, which ensure alignment with the model’s training distribution.
+Within this closure, the application captures all required computational context for real-time inference: a reference-counted, thread-safe handle to the TorchScript model responsible for prediction, a bounded ring buffer implemented via \texttt{Arc<Mutex<VecDeque>>} for temporal frame queuing, and precomputed normalization constants derived from ImageNet statistics, which ensure alignment with the model's training distribution.
 
 \subsection{Inference Loop and Scheduling}
 \label{sec:inference_loop}
@@ -606,9 +606,7 @@ This scheduling mechanism guarantees sub-second latency for every inference iter
 
 Following the execution of the TorchScript model, the output tensor—corresponding to the predicted Quality of Experience (QoE) score for the latest 1-second window—is detached from GPU memory and forwarded to the post-processing pipeline. This pipeline is responsible for converting model logits or regression outputs into interpretable QoE estimates, typically on a scale consistent with the Mean Opinion Score (MOS) annotations used during training (e.g., [1, 5]).
 
-Although the current implementation does not include perceptual rescaling or temporal smoothing, such operations can be easily integrated at this stage, such as exponential 
-moving averages or sigmoid-based range transformations. Moreover, future integration with a user-facing dashboard or quality monitoring system can be done asynchronously, 
-as the inference loop exposes a stable API and thread-safe data sink.
+Although the current implementation does not include perceptual rescaling or temporal smoothing, such operations can be easily integrated at this stage, such as exponential moving averages or sigmoid-based range transformations. Moreover, future integration with a user-facing dashboard or quality monitoring system can be done asynchronously, as the inference loop exposes a stable API and thread-safe data sink.
 
 For diagnostic purposes, raw predictions are printed to standard output in real time. In production deployment, these values could be streamed to an HTTP server or written to disk in protocol buffer or CSV format, enabling integration with QoE analytics platforms.
 

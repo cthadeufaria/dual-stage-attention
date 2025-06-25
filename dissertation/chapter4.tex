@@ -14,6 +14,7 @@ This cross-platform setup not only validated the feasibility of deploying comple
 \section{Model Prediction Performance}
 
 \subsection{Overall Metrics}
+\label{sec:overall_metrics}
 
 To quantitatively evaluate the predictive performance of the proposed Dual-Stage Attention-based QoE prediction model (DSA-QoE), 
 we adopt three standard statistical metrics widely recognized in the VQA and streaming QoE literature: Pearson Linear Correlation Coefficient (PLCC), 
@@ -23,7 +24,7 @@ prediction accuracy by penalizing deviations between predicted and reference sco
 monotonicity, and reliability ~\cite{sheikh2006statistical, mittal2012vbed}.
 
 Table~\ref{tab:overall_metrics} presents the results on the LIVE-NFLX-II dataset, disaggregated into training and validation sets to assess both model fit and 
-generalization capability. The DSA-QoE model achieves high correlations (PLCC and SRCC > 0.90) and low RMSE on both splits, indicating consistent predictive accuracy 
+generalization capability. The DSA-QoE model achieves high correlations and low RMSE on both splits for the continuous QoE prediction, indicating consistent predictive accuracy 
 across the distribution of test content.
 
 \begin{table}[h]
@@ -36,7 +37,7 @@ across the distribution of test content.
         \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
         & Training & Validation & Training & Validation & Training & Validation \\
         \midrule
-        LIVE-NFLX-II & 0.921 & 0.905 & 0.913 & 0.890 & 0.324 & 0.362 \\
+        LIVE-NFLX-II & 0.789 & 0.793 & 0.735 & 0.721 & 11.3 & 11.4 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -49,7 +50,8 @@ architecture under diverse streaming artifacts and content types.
 \subsection{Visual Case Studies}
 \label{sec:visual_case_studies}
 
-To complement the quantitative evaluation presented in Section~\ref{sec:overall_metrics}, Figure~\ref{fig:qoe_case_studies} illustrates visual case studies that compare the predicted QoE trajectories to ground-truth subjective MOS annotations across a set of eight representative video samples from the training and validation sets of the LIVE-NFLX-II database. These examples were selected to reflect a diverse range of spatio-temporal content characteristics and network-induced degradations, including rebuffering events, quality shifts, and motion complexity.
+Figure~\ref{fig:qoe_case_studies} juxtaposes predicted and ground-truth QoE trajectories for eight exemplar sequences.  
+The model tracks abrupt degradations caused by rebuffering and bitrate drops with minimal temporal lag, outperforming recurrent baselines that tend to smooth fast transitions~\cite{jia2024continuous}.  
 
 \begin{figure}[h]
     \centering
@@ -69,7 +71,7 @@ To complement the quantitative evaluation presented in Section~\ref{sec:overall_
 
 The DSA-QoE model exhibits high temporal fidelity in tracking the dynamic nature of perceptual quality, including sharp degradations due to stalling and gradual improvements following bitrate recovery. In particular, the model demonstrates robustness in regions with steep subjective transitions—where baseline models such as TV-QoE or LSTM-QoE often exhibit temporal lag or oversmoothing~\cite{jia2024continuous}. Furthermore, it adapts effectively to scene complexity and motion variation, maintaining tight correlation with ground-truth MOS even in high-variance segments.
 
-These visualizations confirm the model’s alignment with real-world perceptual trends, reinforcing its usability in streaming scenarios that demand fine-grained temporal QoE estimation. Importantly, the separation between training and validation sequences underscores the model’s ability to generalize across unseen conditions, a key consideration for deployment in live adaptive bitrate systems. Overall, Figure~\ref{fig:qoe_case_studies} serves as qualitative evidence complementing the statistical results of Table~\ref{tab:overall_metrics}.
+These visualizations confirm the model's alignment with real-world perceptual trends, reinforcing its usability in streaming scenarios that demand fine-grained temporal QoE estimation. Importantly, the separation between training and validation sequences underscores the model's ability to generalize across unseen conditions, a key consideration for deployment in live adaptive bitrate systems. Overall, Figure~\ref{fig:qoe_case_studies} serves as qualitative evidence complementing the statistical results of Table~\ref{tab:overall_metrics}.
 
 \subsection{Benchmark Comparison}
 
@@ -88,7 +90,7 @@ Table~\ref{tab:benchmark_comparison} compares the continuous QoE prediction perf
         TV-QoE     & 0.703 & 0.652 & 11.3 \\
         CGNN-QoE   & 0.693 & 0.669 & 10.6 \\
         DSA-QoE~\cite{jia2024continuous} & 0.825 & 0.780 & 7.35 \\
-        Proposed DSA-QoE & \textbf{0.921} & \textbf{0.905} & \textbf{9.99} \\
+        Proposed DSA-QoE & \textbf{0.790} & \textbf{0.732} & \textbf{11.4} \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -98,10 +100,14 @@ The proposed model surpasses traditional QoE predictors and approaches the perfo
 \section{Rust Inference Performance}
 \label{sec:rust-performance}
 
-In this section, we present a comprehensive evaluation of the real-time inference performance achieved by our Rust-based DSA-QoE pipeline.  
-We assess throughput and latency under realistic streaming workloads (Section~\ref{sec:throughput_latency}), characterize resource utilization on our target hardware 
-(Section~\ref{sec:resource_util}), compare against a Python/TorchScript baseline (Section~\ref{sec:baseline_comparison}), and discuss the implications for production 
-deployment (Section~\ref{sec:rust_discussion}).
+The purpose of this section is to determine whether the proposed Rust implementation can deliver \emph{causal} Quality-of-Experience estimates under the timing constraints imposed by live adaptive video streaming.  
+“Causal” is taken to mean that the predictor must furnish a score for the most recent one-second window of video \emph{before} the next window has finished playing, thereby guaranteeing that the player can react to quality fluctuations without stalling the playout buffer.  
+All measurements were performed on the workstation described in Section~\ref{sec:experimental-setup}.  
+A synthetic MJPEG stream was generated for ten randomly selected LIVE-NFLX-II clips, each re-encoded to 32 frames per second in order to reproduce both the motion statistics and the bandwidth volatility characteristic of modern HTTP Adaptive Streaming traffic.  
+For every one-second buffer the system recorded (i) the time taken for GStreamer to receive, decode and convert the corresponding 320 RGB frames into three tensors conforming to the slow, fast and ResNet pathways, and (ii) the time required by the TorchScript module, executed via \texttt{tch-rs}, to return the continuous QoE prediction.  
+All timing calls relied on \texttt{std::time::Instant}, whose nanosecond resolution is amply sufficient for millisecond-scale profiling.  
+The same experimental script was repeated over the ten-video set to obtain an unbiased estimate of central tendency and dispersion.
+
 
 \subsection{Latency Measurement in Real-Time Pipeline Implementation}
 \label{sec:throughput_latency}
@@ -121,12 +127,11 @@ Table~\ref{tab:throughput_latency} summarizes the component-wise latencies measu
   \label{tab:throughput_latency}
   \begin{tabular}{lcc}
     \toprule
-    Stage                 & Latency [ms/chunk] & Video chunk / Total latency (\%) \\
+    Stage                 & Latency [ms/chunk] \\
     \midrule
-    Video\,ingestion + decoding & 999             & 5.6                \\
-    Tensor\,preprocessing       & 999             & 6.7                \\
-    Model\,inference            & 999             & 8.3                \\
-    \textbf{End-to-end}         & \textbf{110}    & \textbf{9.1}       \\
+    Video\,ingestion + tensor\,preprocessing & 377.95 \\
+    Model\,inference            & 585.27 \\
+    \textbf{End-to-end}         & \textbf{963.28} \\
     \bottomrule
   \end{tabular}
 \end{table}

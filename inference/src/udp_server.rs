@@ -113,6 +113,8 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
         gstreamer_app::AppSinkCallbacks::builder()
             // Called when a new sample is ready
             .new_sample(move |appsink| {
+                // let start = Instant::now();
+
                 let sample = appsink.pull_sample().map_err(|_| gstreamer::FlowError::Error)?;
                 let buffer = sample.buffer().ok_or(gstreamer::FlowError::Error)?;
                 let map = buffer.map_readable().map_err(|_| gstreamer::FlowError::Error)?;
@@ -125,6 +127,8 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                     .map_err(|_| gstreamer::FlowError::Error)?;
                 let width = s.get::<i32>("width")
                     .map_err(|_| gstreamer::FlowError::Error)?;
+
+                // println!("Ingestion and preprocessing took: {:.2?}", start.elapsed());
 
                 let tensor = Tensor::from_slice(data)
                     .to_kind(Kind::Uint8)
@@ -144,14 +148,12 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                     buf.pop_front();
                 }
                 buf.push_back(normalized.shallow_clone());
-                println!("Buffer size: {}", buf.len());
+                // println!("Buffer size: {}", buf.len());
 
-                println!("Received frame number: {}", frame_count);
+                // println!("Received frame number: {}", frame_count);
                 frame_count += 1;  // TODO: Use tokio to handle async frame processing.
                 if buf.len() >= 320 && frame_count % 32 == 0 {  // TODO: Adapt the logic to update the tensors with only one second of data each iteration.
                     let start = Instant::now();
-
-                    let this_time = Instant::now();
 
                     let slow_frames: Vec<_> = buf.iter()
                         .rev()               // Start from newest
@@ -165,10 +167,6 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                     let tensor1 = slow_stacked.upsample_bilinear2d(
                         &[224, 224], false, None, None
                     );
-
-                    println!("tensor 1 took: {:.2?}", this_time.elapsed());
-
-                    let this_time = Instant::now();
 
                     let mut fast_stacked_guard = fast_stacked_clone.lock().unwrap();
                     if let Some(existing) = &mut *fast_stacked_guard {
@@ -202,10 +200,6 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                         &[224, 224], false, None, None
                     );
 
-                    println!("tensor 2 took: {:.2?}", this_time.elapsed());
-
-                    let this_time = Instant::now();
-
                     let resnet_frames: Vec<_> = buf.iter()
                         .rev()
                         .step_by(32)
@@ -216,10 +210,6 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                         .collect();
 
                     let tensor3 = Tensor::stack(&resnet_frames, 1);
-
-                    println!("tensor 3 took: {:.2?}", this_time.elapsed());
-
-                    let this_time = Instant::now();
 
                     for _i in 0..10 {
                         // Simulated Playback Indicator: random stalling between 0 and 0.5s
@@ -268,15 +258,9 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                         .reshape(&[10, 4])
                         .to_kind(Kind::Float);
 
-                    println!("tensor 4 took: {:.2?}", this_time.elapsed());
+                    println!("Preprocessing + batching took: {:.2?}", start.elapsed());
 
-                    println!("Slow pathway input shape: {:?}", tensor1.size());
-                    println!("Fast pathway input shape: {:?}", tensor2.size());
-                    println!("ResNet pathway input shape: {:?}", tensor3.size());
-                    println!("QoS features shape: {:?}", tensor4.size());
-
-                    let duration = start.elapsed();
-                    println!("Preprocessing + batching took: {:.2?}", duration);
+                    let new_start = Instant::now();
 
                     let output = match model_clone.forward(tensor1, tensor2, tensor3, tensor4) {
                         Ok(out) => out,
@@ -286,7 +270,10 @@ fn create_server_pipeline(model: Arc<ModelHandler>) -> Result<Pipeline> {
                         }
                     };
 
-                    println!("Inference output: {:?}", output);
+                    // println!("Inference output: {:?}", output);
+
+                    println!("Inference took: {:.2?}", new_start.elapsed());
+                    println!("Total processing time: {:.2?}", start.elapsed());
                 }
 
                 Ok(gstreamer::FlowSuccess::Ok)

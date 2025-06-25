@@ -2,13 +2,13 @@
 \addvspace {10\p@ }
 \contentsline {figure}{\numberline {1.1}{\ignorespaces Visual Quality Assessment diagram\relax }}{5}{figure.caption.7}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {2.1}{\ignorespaces Framework of the algorithm proposed by Wu, Chen, Hou, et al.~\blx@tocontentsinit {0}\cite {wu2022fastvqa}\relax }}{11}{figure.caption.11}%
-\contentsline {figure}{\numberline {2.2}{\ignorespaces Framework of the MDVSFA algorithm proposed by Li, Jiang, and Jiang~\blx@tocontentsinit {0}\cite {li2023unified}\relax }}{13}{figure.caption.12}%
-\contentsline {figure}{\numberline {2.3}{\ignorespaces Framework of the dual-stage attention model for streaming QoE proposed by Jia et al.~\blx@tocontentsinit {0}\cite {jia2024continuous}\relax }}{14}{figure.caption.13}%
+\contentsline {figure}{\numberline {2.1}{\ignorespaces Framework of the algorithm proposed by Wu, Chen, Hou, et al.~\blx@tocontentsinit {0}\cite {wu2022fastvqa}\relax }}{12}{figure.caption.10}%
+\contentsline {figure}{\numberline {2.2}{\ignorespaces Framework of the MDVSFA algorithm proposed by Li, Jiang, and Jiang~\blx@tocontentsinit {0}\cite {li2023unified}\relax }}{14}{figure.caption.11}%
+\contentsline {figure}{\numberline {2.3}{\ignorespaces Framework of the dual-stage attention model for streaming QoE proposed by Jia et al.~\blx@tocontentsinit {0}\cite {jia2024continuous}\relax }}{15}{figure.caption.12}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Training and validation loss curves. The validation loss plateaus while training loss continues to decrease, indicating potential overfitting.\relax }}{38}{figure.caption.21}%
-\contentsline {figure}{\numberline {3.2}{\ignorespaces Excerpt from the \texttt {ModelHandler} implementation showing TorchScript deserialization and CUDA setup.\relax }}{40}{figure.caption.22}%
-\contentsline {figure}{\numberline {3.3}{\ignorespaces GStreamer pipeline for MJPEG-based acquisition and conditioning. The queue element facilitates backpressure isolation between decoding and tensor extraction.\relax }}{41}{figure.caption.23}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Training and validation loss curves. The validation loss plateaus while training loss continues to decrease, indicating potential overfitting.\relax }}{39}{figure.caption.20}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Excerpt from the ModelHandler implementation showing TorchScript deserialization and CUDA setup.\relax }}{41}{figure.caption.21}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces GStreamer pipeline for MJPEG-based acquisition and conditioning. The queue element facilitates backpressure isolation between decoding and tensor extraction.\relax }}{42}{figure.caption.22}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Predicted vs.~ground truth QoE for eight representative videos. Top row: training set samples; bottom row: validation set samples.\relax }}{46}{figure.caption.27}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Predicted vs.~ground truth QoE for eight representative videos. Top row: training set samples; bottom row: validation set samples.\relax }}{47}{figure.caption.26}%
 \addvspace {10\p@ }

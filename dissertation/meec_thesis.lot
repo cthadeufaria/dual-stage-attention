@@ -2,11 +2,10 @@
 \addvspace {10\p@ }
 \contentsline {table}{\numberline {1.1}{\ignorespaces Performance comparison of FastVQA and MDVSFA on different databases. Spearman's Rank Correlation Coefficient (SRCC) and Pearson Linear Correlation Coefficient (PLCC).\relax }}{6}{table.caption.8}%
 \contentsline {table}{\numberline {1.2}{\ignorespaces Performance of Dual-Stage Attention model on different databases. Spearman's Rank Correlation Coefficient (SRCC) and Pearson Linear Correlation Coefficient (PLCC).\relax }}{6}{table.caption.9}%
-\contentsline {table}{\numberline {1.3}{\ignorespaces Performance of DA-QoE model on different databases. Spearman's Rank Correlation Coefficient (SRCC) and Pearson Linear Correlation Coefficient (PLCC).\relax }}{6}{table.caption.10}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {4.1}{\ignorespaces DSA-QoE Performance Metrics on LIVE-NFLX-II (Training vs. Validation)\relax }}{45}{table.caption.26}%
-\contentsline {table}{\numberline {4.2}{\ignorespaces Benchmark: Continuous QoE Prediction on LIVE-NFLX-II\relax }}{46}{table.caption.28}%
-\contentsline {table}{\numberline {4.3}{\ignorespaces Rust Inference Latency\relax }}{47}{table.caption.29}%
+\contentsline {table}{\numberline {4.1}{\ignorespaces DSA-QoE Performance Metrics on LIVE-NFLX-II (Training vs. Validation)\relax }}{46}{table.caption.25}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Benchmark: Continuous QoE Prediction on LIVE-NFLX-II\relax }}{47}{table.caption.27}%
+\contentsline {table}{\numberline {4.3}{\ignorespaces Rust Inference Latency\relax }}{48}{table.caption.28}%
 \addvspace {10\p@ }
