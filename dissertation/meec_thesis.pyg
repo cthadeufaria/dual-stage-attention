@@ -1,7 +1,0 @@
-appsink.set_callbacks(
-    gstreamer_app::AppSinkCallbacks::builder()
-        .new_sample(move |appsink| {
-            // Frame processing state machine
-        })
-        .build()
-);

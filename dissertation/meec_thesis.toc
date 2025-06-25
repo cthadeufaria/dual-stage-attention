@@ -21,7 +21,7 @@
 \contentsline {subsection}{\numberline {2.3.2}Comparative Analysis and Selection Rationale}{15}{subsection.2.3.2}%
 \contentsline {section}{\numberline {2.4}Neural Networks for Quality-of-Experience Prediction}{16}{section.2.4}%
 \contentsline {subsection}{\numberline {2.4.1}Architectural Paradigms for Perceptual Quality Prediction}{16}{subsection.2.4.1}%
-\contentsline {subsection}{\numberline {2.4.2}Case Study: Hierarchical Feature Extraction with ResNet-50}{17}{subsection.2.4.2}%
+\contentsline {subsection}{\numberline {2.4.2}Case Study: Hierarchical Feature Extraction with ResNet-50}{16}{subsection.2.4.2}%
 \contentsline {subsection}{\numberline {2.4.3}Optimizing for Perceptual Alignment}{17}{subsection.2.4.3}%
 \contentsline {subsection}{\numberline {2.4.4}Implementation Challenges and Practical Considerations}{18}{subsection.2.4.4}%
 \contentsline {section}{\numberline {2.5}Rust and Machine Learning Inference in Media Pipelines}{19}{section.2.5}%
@@ -50,13 +50,27 @@
 \contentsline {subsection}{\numberline {3.4.3}Learning Rate Scheduling}{36}{subsection.3.4.3}%
 \contentsline {subsection}{\numberline {3.4.4}Batch-wise Training Loop}{36}{subsection.3.4.4}%
 \contentsline {subsection}{\numberline {3.4.5}Mixed-Precision Training}{36}{subsection.3.4.5}%
-\contentsline {subsection}{\numberline {3.4.6}Hardware Environment}{36}{subsection.3.4.6}%
+\contentsline {subsection}{\numberline {3.4.6}Hardware Environment}{37}{subsection.3.4.6}%
 \contentsline {subsection}{\numberline {3.4.7}Loss Function}{37}{subsection.3.4.7}%
 \contentsline {subsection}{\numberline {3.4.8}Training Results and Diagnostic Analysis}{37}{subsection.3.4.8}%
 \contentsline {subsubsection}{\numberline {3.4.8.1}Loss Curve Interpretation}{37}{subsubsection.3.4.8.1}%
 \contentsline {subsubsection}{\numberline {3.4.8.2}Quantitative Loss Analysis}{38}{subsubsection.3.4.8.2}%
-\contentsline {section}{\numberline {3.5}Inference Media Pipeline in Rust}{38}{section.3.5}%
-\contentsline {subsection}{\numberline {3.5.1}Inference Backend and Serialization}{38}{subsection.3.5.1}%
-\contentsline {subsection}{\numberline {3.5.2}Real-Time Video Ingestion and Processing}{39}{subsection.3.5.2}%
-\contentsline {subsection}{\numberline {3.5.3}Inference Loop and Scheduling}{41}{subsection.3.5.3}%
-\contentsline {subsection}{\numberline {3.5.4}Post-Processing and Score Delivery}{41}{subsection.3.5.4}%
+\contentsline {section}{\numberline {3.5}Inference Media Pipeline in Rust}{39}{section.3.5}%
+\contentsline {subsection}{\numberline {3.5.1}Inference Backend and Serialization}{39}{subsection.3.5.1}%
+\contentsline {subsection}{\numberline {3.5.2}Real-Time Video Ingestion and Processing}{40}{subsection.3.5.2}%
+\contentsline {subsection}{\numberline {3.5.3}Inference Loop and Scheduling}{42}{subsection.3.5.3}%
+\contentsline {subsection}{\numberline {3.5.4}Post-Processing and Score Delivery}{43}{subsection.3.5.4}%
+\contentsline {chapter}{\numberline {4}Qualitative Results}{44}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup Summary}{44}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Model Prediction Performance}{45}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Overall Metrics}{45}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Visual Case Studies}{45}{subsection.4.2.2}%
+\contentsline {subsection}{\numberline {4.2.3}Benchmark Comparison}{46}{subsection.4.2.3}%
+\contentsline {section}{\numberline {4.3}Rust Inference Performance}{47}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Latency Measurement in Real-Time Pipeline Implementation}{47}{subsection.4.3.1}%
+\contentsline {chapter}{\numberline {5}Conclusions}{49}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Understanding the Problem}{49}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Empirical Findings and Technical Insights}{50}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Contributions of the Dissertation}{51}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Outcomes and Future Directions}{51}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Summary}{53}{section.5.5}%

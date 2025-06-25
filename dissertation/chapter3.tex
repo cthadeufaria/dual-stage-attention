@@ -591,7 +591,26 @@ appsink.set_callbacks(
 Within this closure, the application captures all required computational context for real-time inference: a reference-counted, thread-safe handle to the TorchScript model responsible for prediction, a bounded ring buffer implemented via \texttt{Arc<Mutex<VecDeque>>} for temporal frame queuing, and precomputed normalization constants derived from ImageNet statistics, which ensure alignment with the model’s training distribution.
 
 \subsection{Inference Loop and Scheduling}
-% Multithreaded execution, latency buffering, frame timing strategies
+\label{sec:inference_loop}
+
+The inference loop constitutes the real-time decision-making core of the system, designed to process continuous video streams and deliver frame-level QoE predictions at one-second intervals. Implemented in Rust using the GStreamer and \texttt{tch-rs} libraries, the loop is event-driven and operates asynchronously, pulling frames from an \texttt{appsink} connected to a live UDP MJPEG video stream.
+
+Each new video frame is buffered into a thread-safe \texttt{VecDeque} structure with a fixed capacity of 320 frames (corresponding to 10 seconds of video at 32 FPS). Upon every 32-frame increment—i.e., once per second—the system triggers a full model inference cycle. This aligns with the SlowFast model's temporal subsampling design, where the fast pathway processes 320 frames and the slow pathway 80 frames (subsampled every 4 frames), while a complementary ResNet pathway processes every 32nd frame. This three-branch architecture is dynamically batched and normalized using channel-wise ImageNet statistics before inference.
+
+To enable concurrent and low-latency processing, the inference scheduling is thread-safe and utilizes Rust's fine-grained locking primitives (\texttt{Arc<Mutex<\ldots>}) for managing shared access to the frame buffer and stacked tensor states. This ensures consistent frame sequencing while avoiding data races. Additionally, synthetic Quality of Service (QoS) features are generated in real-time, simulating bitrate switches, stalls, and recovery periods. These are fed into the fourth model branch as a $10 \times 4$ matrix per inference window.
+
+This scheduling mechanism guarantees sub-second latency for every inference iteration, allowing the system to deliver time-aligned, causal predictions that satisfy the constraints of real-time video quality monitoring.
 
 \subsection{Post-Processing and Score Delivery}
-% Output QoE scores, smoothing/filtering, downstream integration
+\label{sec:post_processing}
+
+Following the execution of the TorchScript model, the output tensor—corresponding to the predicted Quality of Experience (QoE) score for the latest 1-second window—is detached from GPU memory and forwarded to the post-processing pipeline. This pipeline is responsible for converting model logits or regression outputs into interpretable QoE estimates, typically on a scale consistent with the Mean Opinion Score (MOS) annotations used during training (e.g., [1, 5]).
+
+Although the current implementation does not include perceptual rescaling or temporal smoothing, such operations can be easily integrated at this stage, such as exponential 
+moving averages or sigmoid-based range transformations. Moreover, future integration with a user-facing dashboard or quality monitoring system can be done asynchronously, 
+as the inference loop exposes a stable API and thread-safe data sink.
+
+For diagnostic purposes, raw predictions are printed to standard output in real time. In production deployment, these values could be streamed to an HTTP server or written to disk in protocol buffer or CSV format, enabling integration with QoE analytics platforms.
+
+The design ensures that score delivery occurs within a few milliseconds of inference completion, thus maintaining the low-latency requirements for continuous monitoring of perceptual quality in streaming applications.
+

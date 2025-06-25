@@ -17,9 +17,22 @@
 \usepackage[utf8]{inputenc}
 
 %% MEEC options
-\usepackage[meec]{feupteses}              % working version
-%\usepackage[meec,juri]{feupteses}        % juri version
+% \usepackage[meec]{feupteses}              % working version
+\usepackage[meec,juri]{feupteses}        % juri version
 %\usepackage[meec,final]{feupteses}       % final PDF version
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{subcaption}
+\usepackage{amssymb}
+\usepackage{pgfplots}
+\usepackage[cache=false]{minted} % For syntax-highlighted code
+\usepackage{caption} % For figure/table caption styling
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta}
+\tikzstyle{block} = [rectangle, draw, fill=blue!20, text centered, minimum height=2em, minimum width=3em]
+\tikzstyle{line} = [draw, thick, -{Latex[length=2mm]}]
+\usepackage{listings}
+\usepackage{xcolor}  % for colors
 
 %% Additional options for feupteses.sty:
 %% - portugues: titles, etc in portuguese
@@ -30,9 +43,11 @@
 %% TIP: use folder ``figures'' to keep all your figures
 %% Path to the figures directory
 \graphicspath{{figures/}}
+% \usepackage[backend=biber,style=ieee]{biblatex}
 
 %% Change to the appropriate bibliography file
 \addbibresource{bibliography.bib}
+\pgfplotsset{compat=1.18}
 
 %%========================================
 %% Start of document
@@ -42,19 +57,14 @@
 %%----------------------------------------
 %% Information about the work
 %%----------------------------------------
-\title{$<$Dissertation Title$>$}
-\author{$<$Author's Full Name$>$}
+\title{Bridging AI and Systems Programming: Deploying a Dual-Stage Attention Model in a Rust-Based Media Framework}
+\author{Carlos Thadeu Aguiar de Faria}
 
-%% Uncomment next line for date of submission
-%\thesisdate{July 31, 2008}
+\thesisdate{June 30, 2025}
 
-%% Comment next line copyright text if not used
-\copyrightnotice{Name of the Author, 2008}
+\copyrightnotice{Carlos Thadeu Aguiar de Faria, 2025}
 
-\supervisor{Supervisor}{Prof.\ $<$Name of the Supervisor$>$}
-
-%% Uncomment next line if necessary
-%\supervisor{Second Supervisor}{Prof.\ $<$Name of the Supervisor$>$}
+\supervisor{Supervisor}{Prof.\ Maria Teresa Magalhães da Silva Pinto de Andrade}
 
 %% Uncomment committee stuff in the final version if used
 %\committeetext{Approved in oral examination by the committee:}
@@ -106,6 +116,8 @@
 \include{chapter1} 
 \include{chapter2}
 \include{chapter3}
+\include{chapter4}
+\include{chapter5}
 %% Uncomment to see a listing example (cp meic.cfg meec.cfg)
 %\include{chapter45-listing}
 
@@ -114,7 +126,8 @@
 %%----------------------------------------
 
 %% Bibliography
-\PrintBib
+% \PrintBib
+\printbibliography
 
 %% comment next 2 commands if numbered appendices are not used
 \appendix

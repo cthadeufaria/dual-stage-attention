@@ -159,7 +159,7 @@ class Trainer:
         rmse_list = []
 
         with torch.no_grad():
-            for i, data in enumerate(self.validation_dataloader):
+            for i, data in enumerate(self.training_dataloader):
                 print('Processing performance metris for validation dataset on batch', (i + 1))
 
                 inputs, labels = [
@@ -182,7 +182,7 @@ class Trainer:
                 plt.xlabel('Frame Index')
                 plt.ylabel('Continuous QoE')
                 plt.legend()
-                plt.savefig(f'./runs/plots/video_{i + 1}_true_vs_predicted.png')
+                plt.savefig(f'./runs/plots/training/video_{i + 1}_true_vs_predicted.png')
                 plt.close()
 
                 plcc = pearsonr(y_pred, y_true)[0]
@@ -203,7 +203,7 @@ class Trainer:
         now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
         results = pd.DataFrame([plcc_list, srcc_list, rmse_list],
                                 index=['PLCC', 'SRCC', 'RMSE']).T
-        results.to_csv(f'./runs/results/DUAL_ATTENTION_LIVENFLX_II_{now}_results.csv', index=False)
+        results.to_csv(f'./runs/results/training/DUAL_ATTENTION_LIVENFLX_II_{now}_results.csv', index=False)
 
     def load_model(self, model_path):
         """
