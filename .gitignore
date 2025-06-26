@@ -1,7 +1,9 @@
 # Specific for this repo
 datasets/LIVE_NFLX_Plus
 runs/
-inference/libtorch/
+
+dissertation/
+!dissertation/meec_thesis.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
