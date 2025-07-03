@@ -1,6 +1,6 @@
 # Specific for this repo
 datasets/LIVE_NFLX_Plus
-runs/
+runs/models/
 
 dissertation/
 !dissertation/meec_thesis.pdf
