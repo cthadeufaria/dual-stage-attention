@@ -1,0 +1,73 @@
+\chapter{Conclusions} \label{chap:ch5}
+
+This chapter consolidates the key findings of the dissertation and evaluates the contributions made across both the modeling and systems dimensions of real-time Quality of Experience (QoE) prediction. It revisits the original challenges posed by perceptual video quality assessment in live streaming scenarios, examines how the proposed methodologies addressed these challenges, and outlines the broader implications of deploying attention-based deep learning models in systems-level environments. The chapter also reflects on remaining limitations and highlights promising directions for future research in multimedia AI deployment.
+
+\section{Understanding the Problem}
+
+The problem of accurate, real-time video quality assessment (VQA) in professional streaming contexts lies at the intersection of perceptual modeling and systems engineering. While traditional full-reference metrics such as PSNR and SSIM are computationally convenient, they are poorly aligned with subjective perception under real-world degradations~\cite{huynh2012scope,wang2004ssim}. This misalignment becomes more pronounced in adaptive streaming scenarios, where rebuffering events, resolution switches, and temporal fluctuations dominate the Quality of Experience (QoE) perceived by end-users.
+
+No-reference VQA methods attempt to infer QoE directly from distorted signals, but earlier approaches based on handcrafted features struggle to capture the complex interactions between content characteristics and network-induced impairments~\cite{min2024perceptual}. Recent deep learning models—such as FastVQA~\cite{wu2022fastvqa} and MDVSFA~\cite{li2023unified}—have shown promising improvements in alignment with human ratings, yet they are typically evaluated in offline contexts and often overlook playback-level indicators like stalling or bitrate volatility.
+
+From a systems perspective, deploying QoE predictors in live streaming pipelines introduces new constraints. Real-time inference must meet latency budgets below one second, maintain throughput for high-frame-rate video, and avoid memory or concurrency issues that might destabilize the media stack. These requirements impose a dual challenge: first, to adopt a model architecture that captures both perceptual and network-aware quality factors; and second, to embed that architecture within a robust and efficient execution environment suitable for production use.
+
+This dissertation addresses these challenges by implementing and deploying the Dual-Stage Attention QoE (DSA-QoE) model proposed by Jia~\textit{et al.}~\cite{jia2024continuous} in a fully Rust-native inference pipeline. The DSA-QoE model unifies semantic and temporal features from SlowFast and ResNet backbones with auxiliary QoS features via hierarchical attention and adaptive fusion. Unlike prior work limited to research environments, this dissertation demonstrates the model's practical viability through integration into a concurrent, latency-sensitive media processing pipeline written in Rust. The system ingests video via GStreamer, preprocesses it using PyTorch-equivalent transformations, performs batched inference via TorchScript and \texttt{tch-rs}, and delivers sub-second QoE scores aligned with streaming playback rates.
+
+By operationalizing the DSA-QoE model under realistic media constraints, this work reframes the QoE estimation problem as not merely a question of perceptual modeling accuracy, but also one of deployment feasibility. The dissertation thus contributes toward bridging the long-standing gap between theoretical VQA research and production-grade streaming quality monitoring systems.
+
+\section{Empirical Findings and Technical Insights}
+
+The implementation and evaluation of the DSA-QoE model in a real-time inference pipeline provided multiple insights across both algorithmic performance and systems integration. The architectural choice to adopt the Dual-Stage Attention-based QoE model proposed by Jia~\textit{et al.}~\cite{jia2024continuous} was validated through both quantitative benchmarks and visual case studies, confirming its suitability for perceptual quality modeling in live streaming scenarios. The model consistently achieved high PLCC and SRCC values and low RMSE on the LIVE-NFLX-II dataset, demonstrating its ability to track continuous subjective quality under spatiotemporal distortions and playback anomalies.
+
+From a systems engineering perspective, the Rust-based deployment pipeline developed in this work fulfilled the real-time processing requirements necessary for live QoE estimation. The integration of TorchScript inference through the \texttt{tch-rs} crate, combined with GStreamer for high-throughput media ingestion and a custom tensor preprocessing stack, resulted in stable end-to-end latencies well below 964\,ms per second of video. This satisfies the 1-second chunking interval and confirms that deep perceptual models can be deployed in media systems under strict real-time constraints.
+
+Additionally, the design of the buffering and inference loop—executed once per second—proved crucial to balancing responsiveness and computational efficiency. The multi-pathway input structure (SlowFast, ResNet, QoS) was effectively maintained across both training and inference environments, further validating the cross-platform portability of the model. Notably, the model's Cross-Feature Attention and self-adaptive fusion components were shown to contribute positively to both temporal smoothness and sensitivity to sudden degradations in the quality curve.
+
+Overall, the findings from this work demonstrate that perceptually accurate, temporally resolved QoE estimation can be achieved not only at the modeling level, but also in practice, within a real-time, memory-safe systems programming environment.
+
+\section{Contributions of the Dissertation}
+
+This dissertation contributes to the fields of perceptual video quality assessment and systems-level AI deployment in several key dimensions, spanning algorithmic implementation, software architecture, and performance evaluation.
+
+From a modeling perspective, this work successfully implements and deploys the Dual-Stage Attention-based QoE (DSA-QoE) model~\cite{jia2024continuous}, a state-of-the-art neural architecture that fuses visual and Quality-of-Service (QoS) features to predict continuous Quality of Experience (QoE). Through rigorous experimentation on the LIVE-NFLX-II dataset, the model demonstrates high predictive fidelity, achieving PLCC and SRCC values above 0.90 and preserving temporal alignment with human perceptual trends. This implementation not only confirms the original model's capacity to handle complex, dynamic streaming artifacts, but also extends its validation beyond offline evaluation into real-time application contexts.
+
+In terms of systems engineering, this dissertation offers a complete and deployable Rust-based inference pipeline for perceptual video quality estimation. By integrating TorchScript-serialized models using the \texttt{tch-rs} crate and managing video decoding and buffering via GStreamer, the system achieves sub-964\,ms end-to-end inference latency on a one-second frame buffer. The system is memory-safe, concurrent, and architected for deterministic throughput—highlighting Rust’s viability as a deployment language for real-time deep learning applications in audiovisual systems. Unlike conventional Python or C++ approaches, this pipeline enables precise control over memory and thread safety, thereby reducing jitter and eliminating garbage collection overhead.
+
+A third key contribution lies in the methodological bridge constructed between AI-driven perceptual modeling and systems-level performance guarantees. The inference loop design and preprocessing logic faithfully reproduce the dual-pathway SlowFast architecture~\cite{feichtenhofer2019slowfast} and ResNet-based features~\cite{he2016deep} in Rust, validating the portability of complex deep learning transformations across software environments. Furthermore, the dissertation includes an analysis of latency breakdowns, throughput rates, and temporal consistency of predictions, establishing an empirical foundation for practical deployment in production streaming workflows.
+
+Finally, this work contributes a reproducible methodology for end-to-end development of AI-driven QoE monitoring systems. By covering model adaptation, real-time pipeline construction, and empirical benchmarking, the dissertation serves as both a research validation and a practical engineering guide for future deployments of perceptual quality models in media infrastructure.
+
+Collectively, these contributions demonstrate that high-fidelity, attention-based QoE prediction models can be efficiently deployed in latency-constrained environments, bridging a critical gap between machine learning research and production media delivery.
+
+\section{Outcomes and Future Directions}
+
+The outcomes of this dissertation demonstrate the feasibility and effectiveness of deploying advanced Quality of Experience (QoE) prediction models in real-time audiovisual systems. By combining the Dual-Stage Attention (DSA-QoE) architecture with a fully Rust-native media pipeline, the project validates that perceptually aligned, low-latency video quality assessment is achievable under practical streaming constraints. The system successfully delivers continuous QoE scores at sub-chunk latency (< 964\,ms per second of video), affirming its potential for integration into adaptive bitrate algorithms, monitoring dashboards, or perceptual feedback loops in professional streaming infrastructure.
+
+From a methodological standpoint, the end-to-end pipeline—spanning model training, TorchScript export, Rust integration, and live video inference—illustrates a reproducible workflow for deploying deep learning models outside traditional Python or C++ environments. These results position Rust as a credible option for systems that require deterministic behavior, concurrency, and memory safety in the context of multimedia AI.
+
+Despite these advances, several opportunities remain for future work:
+
+\begin{itemize}
+    \item \textbf{Generalization to Multi-Dataset Scenarios:} While this work demonstrates strong performance on the LIVE-NFLX-II dataset, broader generalization remains a core challenge. Cross-dataset evaluations and training strategies such as multi-corpus fusion or domain adaptation (as proposed in~\cite{li2023unified}) could further enhance robustness and applicability across diverse streaming conditions.
+
+    \item \textbf{Edge and Mobile Deployment:} The current inference pipeline targets high-performance GPU-equipped workstations. Future work may focus on lightweight or quantized model variants suitable for inference on edge devices, mobile platforms, or embedded systems, enabling decentralized perceptual monitoring in constrained environments.
+
+    \item \textbf{Integration with Real-Time Control Loops:} The continuous QoE output produced by this system can be integrated into adaptive bitrate controllers or QoS feedback mechanisms. Investigating the impact of perceptual metrics on real-time decision-making (e.g., congestion control, encoding adaptation) represents an important direction for applied research.
+
+    \item \textbf{Explainability and Temporal Uncertainty:} As QoE predictors become more complex, there is growing interest in making their decisions interpretable. Future work may incorporate uncertainty quantification, attention visualization, or saliency detection to provide actionable insights for operators and improve model trustworthiness.
+
+    \item \textbf{Multi-Modal and Semantic Features:} While this work focuses on visual content and QoS metrics, additional modalities—such as audio quality, scene semantics, or user engagement signals—may further improve prediction fidelity and contextual awareness.
+\end{itemize}
+
+In summary, this dissertation establishes a robust foundation for real-time perceptual quality estimation in professional media systems and opens several paths for extending its impact. As streaming platforms continue to scale and diversify, tools that combine perceptual modeling with production-level performance guarantees will become increasingly essential. This work contributes one such step toward that future.
+
+\section{Summary}
+
+This chapter consolidated the main findings, technical contributions, and future perspectives arising from the development and deployment of a real-time Quality of Experience (QoE) monitoring system. By addressing both algorithmic modeling and systems integration, the dissertation bridged the gap between perceptual video quality assessment and practical streaming infrastructure.
+
+The work demonstrated that the Dual-Stage Attention (DSA-QoE) model can be successfully trained, serialized, and deployed within a fully Rust-native media pipeline, delivering high temporal fidelity in QoE prediction with latency below 964\,ms per video second. This result affirms the system’s readiness for real-time applications, including adaptive bitrate streaming and quality-aware monitoring.
+
+Key contributions include: (i) a rigorous evaluation of DSA-QoE performance on the LIVE-NFLX-II dataset using standard statistical and visual metrics; (ii) a complete cross-language deployment strategy using TorchScript and \texttt{tch-rs}; (iii) a GStreamer-based ingestion and buffering subsystem in Rust capable of handling high-throughput video streams; and (iv) a demonstration of sub-real-time inference performance on production-grade hardware.
+
+Together, these findings validate the feasibility of high-fidelity perceptual modeling in safety-critical, latency-constrained environments. They also offer a transferable methodology for researchers and engineers aiming to operationalize deep learning models in multimedia systems. The dissertation concludes with a forward-looking discussion of future research directions, including generalization strategies, edge deployment, explainability, and integration with control feedback loops.
+
+Overall, this work contributes to the growing intersection of deep learning, systems programming, and perceptual media engineering, establishing a foundation for scalable and intelligent video quality assessment in modern streaming ecosystems.

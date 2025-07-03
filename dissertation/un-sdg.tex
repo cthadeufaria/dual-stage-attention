@@ -1,0 +1,46 @@
+%% -------------------------------------------------------
+%%  UN Sustainable Development Goals chapter (re-focused)
+%%  Insert immediately after the Abstract.
+%%  Requires: \usepackage{multirow,booktabs}
+%% -------------------------------------------------------
+
+\chapter*{UN Sustainable Development Goals}\label{chap:UnitedNations}
+
+The United Nations \emph{2030 Agenda} frames engineering research in terms of
+pragmatic innovation. This dissertation advances two goals that are closely aligned
+with its technical contributions:
+
+\begin{description}
+  \item[SDG 8] \textbf{Decent Work and Economic Growth}
+  \item[SDG 9] \textbf{Industry, Innovation and Infrastructure}
+\end{description}
+
+\noindent
+At the core of the work is a \emph{low-latency, Rust-based QoE prediction
+pipeline}. Table~\ref{tab:sdg_matrix} summarises how the research outcomes can translate
+into measurable progress on those two SDGs.
+
+The proposed Dual-Stage Attention QoE network delivers
+\emph{0.790 PLCC at 32 fps} on a single RTX A4000, while the fully-threaded Rust
+frontend keeps end-to-end delay under one video chunk, making use of the 
+TorchScript serialization, sufficient for per-second quality tracking in live monitoring dashboards.
+This performance profile opens opportunities for cost-aware deployments in
+emerging markets and remote venues, illustrating how targeted algorithmic and
+systems innovation can accelerate progress toward SDGs 8 and 9 without
+requiring large-scale capital expenditure.
+
+\begin{table}[h]
+\centering
+\caption{Alignment between dissertation outcomes and selected SDG targets.}
+\label{tab:sdg_matrix}
+\begin{tabular}{@{}|c|c|p{56mm}|p{47mm}|@{}}
+\toprule
+\textbf{SDG} & \textbf{Target} & \textbf{Contribution of this work} & \textbf{Indicative metrics (as reported)} \\ \midrule\midrule
+\multirow{2}{*}{8}
+ & 8.2 & Demonstrates integration of an AI-based QoE inference module in GStreamer pipelines with low-latency inference and threading for real-time use. & Average end-to-end latency ($\sim$963\,ms) per 1s chunk (Table~\ref{tab:throughput_latency}) \\ \cline{2-4}
+ & 8.4 & Enables per-second continuous QoE monitoring without ground-truth labels, promoting more efficient streaming analytics workflows. & PLCC/SRCC/RMSE per video averaged across LIVE-NFLX-II set (Table~\ref{tab:benchmark_comparison}) \\ \midrule
+\multirow{2}{*}{9}
+ & 9.4 & Uses Rust to improve memory safety and concurrency in the media inference stack, contrasting with Python-based alternatives. & End-to-end system implemented in Rust (Chapter~\ref{chap:ch3}) \\ \cline{2-4}
+ & 9.b & Provides open TorchScript model and Rust inference code with dataset alignment scripts. & Public GitHub repository (https://github.com/ cthadeufaria/dual-stage-attention) \\ \bottomrule
+\end{tabular}
+\end{table}

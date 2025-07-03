@@ -1,0 +1,15 @@
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {1.1}{\ignorespaces Visual Quality Assessment diagram\relax }}{5}{figure.caption.9}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {2.1}{\ignorespaces Framework of the algorithm proposed by Wu, Chen, Hou, et al.~\blx@tocontentsinit {0}\cite {wu2022fastvqa}\relax }}{12}{figure.caption.12}%
+\contentsline {figure}{\numberline {2.2}{\ignorespaces Framework of the MDVSFA algorithm proposed by Li, Jiang, and Jiang~\blx@tocontentsinit {0}\cite {li2023unified}\relax }}{13}{figure.caption.13}%
+\contentsline {figure}{\numberline {2.3}{\ignorespaces Framework of the dual-stage attention model for streaming QoE proposed by Jia et al.~\blx@tocontentsinit {0}\cite {jia2024continuous}\relax }}{14}{figure.caption.14}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Training and validation loss curves. The validation loss plateaus while training loss continues to decrease, indicating potential overfitting.\relax }}{38}{figure.caption.22}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Excerpt from the ModelHandler implementation showing TorchScript deserialization and CUDA setup.\relax }}{40}{figure.caption.23}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces GStreamer pipeline for MJPEG-based acquisition and conditioning.\relax }}{41}{figure.caption.24}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Full acquisition--processing pipeline. The upper lane is the MJPEG decoding chain in GStreamer; the lower lane is the Rust inference path.\relax }}{45}{figure.caption.27}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces Predicted vs.~ground truth QoE for eight representative videos. Top row: training set samples; bottom row: validation set samples.\relax }}{47}{figure.caption.29}%
+\addvspace {10\p@ }

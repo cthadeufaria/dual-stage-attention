@@ -1,0 +1,6 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k+kd}{let}\PYG{+w}{ }\PYG{n}{appsink}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n}{ElementFactory}::\PYG{n}{make}\PYG{p}{(}\PYG{l+s}{\PYGZdq{}appsink\PYGZdq{}}\PYG{p}{)}
+\PYG{+w}{    }\PYG{p}{.}\PYG{n}{property}\PYG{p}{(}\PYG{l+s}{\PYGZdq{}emit\PYGZhy{}signals\PYGZdq{}}\PYG{p}{,}\PYG{+w}{ }\PYG{k+kc}{true}\PYG{p}{)}\PYG{+w}{ }\PYG{c+c1}{// Enable callback triggers}
+\PYG{+w}{    }\PYG{p}{.}\PYG{n}{property}\PYG{p}{(}\PYG{l+s}{\PYGZdq{}sync\PYGZdq{}}\PYG{p}{,}\PYG{+w}{ }\PYG{k+kc}{false}\PYG{p}{)}\PYG{+w}{       }\PYG{c+c1}{// Decouple from system clock}
+\PYG{+w}{    }\PYG{p}{.}\PYG{n}{build}\PYG{p}{()}\PYG{o}{?}\PYG{p}{;}
+\end{Verbatim}

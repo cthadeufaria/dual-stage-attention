@@ -1,0 +1,17 @@
+[0] Config.pm:307> INFO - This is Biber 2.17
+[0] Config.pm:310> INFO - Logfile is 'meec_thesis.blg'
+[52] biber:340> INFO - === Mon Jun 30, 2025, 18:50:08
+[62] Biber.pm:418> INFO - Reading 'meec_thesis.bcf'
+[113] Biber.pm:972> INFO - Found 60 citekeys in bib section 0
+[121] Biber.pm:4383> INFO - Processing section 0
+[127] Biber.pm:4574> INFO - Looking for bibtex file 'bibliography.bib' for section 0
+[129] bibtex.pm:1713> INFO - LaTeX decoding ...
+[156] bibtex.pm:1518> INFO - Found BibTeX data source 'bibliography.bib'
+[450] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[450] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[450] Biber.pm:4203> INFO - Sorting list 'nty/global//global/global' of type 'entry' with template 'nty' and locale 'en-US'
+[450] Biber.pm:4209> INFO - No sort tailoring available for locale 'en-US'
+[488] bbl.pm:654> INFO - Writing 'meec_thesis.bbl' with encoding 'UTF-8'
+[517] bbl.pm:757> INFO - Output to meec_thesis.bbl
+[517] Biber.pm:130> WARN - I didn't find a database entry for 'hosu2020konvid' (section 0)
+[517] Biber.pm:132> INFO - WARNINGS: 1

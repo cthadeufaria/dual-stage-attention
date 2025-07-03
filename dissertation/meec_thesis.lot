@@ -1,0 +1,12 @@
+\babel@toc {english}{}\relax 
+\contentsline {table}{\numberline {1}{\ignorespaces Alignment between dissertation outcomes and selected SDG targets.\relax }}{iii}{table.caption.4}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {1.1}{\ignorespaces Performance comparison of FastVQA and MDVSFA on different databases. Spearman's Rank Correlation Coefficient (SRCC) and Pearson Linear Correlation Coefficient (PLCC).\relax }}{6}{table.caption.10}%
+\contentsline {table}{\numberline {1.2}{\ignorespaces Performance of Dual-Stage Attention model on different databases. Spearman's Rank Correlation Coefficient (SRCC) and Pearson Linear Correlation Coefficient (PLCC).\relax }}{6}{table.caption.11}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces DSA-QoE Performance for continuous QoE on LIVE-NFLX-II (Training vs. Validation). Statistics are computed per video: mean~$\pm $~SD and median.\relax }}{46}{table.caption.28}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Benchmark: Continuous QoE Prediction on LIVE-NFLX-II\relax }}{48}{table.caption.30}%
+\contentsline {table}{\numberline {4.3}{\ignorespaces Rust Inference Latency\relax }}{49}{table.caption.31}%
+\addvspace {10\p@ }

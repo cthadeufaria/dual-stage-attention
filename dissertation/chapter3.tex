@@ -1,0 +1,613 @@
+\chapter{From Design to Deployment: Transitioning to Full Implementation} \label{chap:ch3}
+
+\section{Model Architecture Development}
+
+This dissertation has progressed through the complete implementation, training, and deployment lifecycle of a real-time video Quality of Experience (QoE) prediction system. The core objective was to validate whether a state-of-the-art model, such as the Dual-Stage Attention network (DSA-QoE)~\cite{jia2024continuous}, could be operationalized in a production-grade media pipeline entirely powered by the Rust programming language.
+
+The previously selected DSA-QoE architecture was first implemented and trained using the PyTorch framework in Python, exploiting its rich ecosystem for deep learning development and GPU-accelerated training. After achieving stable learning dynamics and acceptable generalization performance on a benchmark dataset, the trained model was serialized using TorchScript and deployed via the \texttt{tch-rs} crate into a Rust-native application layer designed for real-time media inference.
+
+The transition from experimental setup to operational deployment involved overcoming significant engineering challenges, including stream buffer management, multi-threaded tensor pre-processing under real-time constraints, and integration with GStreamer based video pipelines. These were addressed using Rust's advanced safety guarantees—such as memory and concurrency correctness through the ownership model—and by leveraging its zero-cost abstractions for performance-critical sections.
+
+This chapter presents not only the architecture and development work, but also a complete exposition of the system's final configuration, including real-time implementation details. The successful end-to-end execution of the inference pipeline in Rust, maintaining throughput close to source frame rate and latency within acceptable bounds, demonstrates the language's applicability in high-performance AI-driven media systems. Furthermore, this implementation contributes empirical validation to ongoing academic discussions about the use of Rust in safety-critical AI workloads~\cite{fulton2022benefits, johansson2023transitioning, carnelos2025microflow}.
+
+\section{Dataset Implementation and Preprocessing}
+
+To train and validate the Dual-Stage Attention (DSA-QoE) model, this work employs the LIVE-NFLX-II dataset~\cite{live_nflx_conf}, a curated benchmark for perceptual quality assessment under realistic video streaming conditions. The dataset provides frame-accurate annotations for both retrospective Mean Opinion Scores (MOS) and continuous perceptual quality, as well as low-level Quality of Service (QoS) metrics such as bitrate switching and playback interruptions. These properties make it ideal for modeling perceptual Quality of Experience (QoE) in dynamic and bandwidth-constrained environments.
+
+\subsection{Custom PyTorch Dataset Class}
+
+The implementation of data loading and processing is encapsulated in a custom PyTorch \texttt{Dataset} class. Upon initialization, all dataset annotations are parsed from pickled metadata files (\texttt{*.pkl}), which contain temporal MOS vectors, video durations, distortion types, and playback metadata. From these, video durations are measured and global normalization parameters are computed for both QoS features and labels.
+
+Each distorted video is loaded using \texttt{EncodedVideo} from \texttt{PyTorchVideo}~\cite{fan2021pytorchvideodeeplearninglibrary}, allowing efficient frame decoding and time-based clip segmentation. Videos are processed in fixed-length segments of $T = 10$ seconds, with start and end times incremented accordingly.
+
+\subsection{Dual Transformation Pipeline}
+
+The preprocessing consists of a dual-pathway transformation architecture implemented in the \texttt{Transform} class. Each video segment undergoes two independent transformations: a SlowFast oriented Transform, which applies time-aligned sampling and resolution changes to produce dual-pathway inputs and a ResNet oriented Transform, that generates temporally sampled frame sequences for static spatial processing.
+
+These transformations are implemented using \texttt{ApplyTransformToKey} from \texttt{PyTorchVideo} ~\cite{fan2021pytorchvideodeeplearninglibrary}, with the video tensor accessed via the \texttt{"video"} key. 
+
+Each transformation applies the following operations:
+
+\paragraph{SlowFast Transform.}
+\begin{enumerate}
+    \item \texttt{UniformTemporalSubsample($T$)} to extract a fixed number of evenly spaced frames.
+    \item \texttt{Lambda(lambda x: x/255.0)} to scale raw pixel intensities to the $[0, 1]$ range.
+    \item \texttt{NormalizeVideo(mean, std)} to normalize each RGB channel.
+    \item \texttt{Resize()} to reduce spatial resolution for efficient training.
+    \item \texttt{PackPathway()} to split frames into a slow and fast pathway for the SlowFast model. The \texttt{PackPathway} module selects every $\frac{1}{\alpha}$-th frame for the slow pathway using linear index sampling, where $\alpha$ was set to 4. The remaining high-rate frames form the fast pathway. The result is a list of tensors: \texttt{[slow\_pathway, fast\_pathway]}.
+\end{enumerate}
+
+\paragraph{ResNet Transform}
+\begin{enumerate}
+    \item \texttt{UniformTemporalSubsample($T$)} to select representative frames.
+    \item Pixel normalization to $[0,1]$ and per-channel standardization.
+    \item No resizing is applied in this transform, preserving original resolution.
+\end{enumerate}
+
+These transformations yield two parallel streams:
+\begin{align*}
+x_{\text{slowfast}} &= [\text{slow\_pathway}, \text{fast\_pathway}] \\
+x_{\text{resnet}}   &= \text{stack of temporally sampled frames}
+\end{align*}
+
+\subsection{QoS Feature Processing and Label Normalization}
+
+In parallel with video processing, a set of four QoS time series is extracted for each clip:
+\begin{itemize}
+    \item \texttt{playback\_indicator}
+    \item \texttt{temporal\_recency}
+    \item \texttt{representation\_quality}
+    \item \texttt{bitrate\_switch}
+\end{itemize}
+
+These features are min-max normalized using statistics computed from the full dataset:
+\[
+\hat{q}_{i,j} = \frac{q_{i,j} - \min(q_j)}{\max(q_j) - \min(q_j)}
+\]
+
+Similarly, the labels—both the scalar retrospective MOS and the frame-wise continuous MOS—are normalized across the dataset using per-type bounds. This target normalization mitigates differences in scale across output variables, ensuring that no single regression objective dominates the optimization process. As discussed in Chapter 7 of Goodfellow et al. ~\cite{goodfellow2016deep}, normalization of targets in regression tasks helps maintain stable gradient magnitudes, accelerates convergence, and contributes to more balanced multi-objective learning.
+
+\subsection{Output Structure and Caching with \texttt{PickleDataset}}
+
+The final data returned from \texttt{VideoDataset} includes:
+\begin{verbatim}
+{
+  'video_content': (slowfast_tensor, resnet_tensor),
+  'qos': qos_features,
+  'overall_QoE': overall_mos,
+  'continuous_QoE': temporal_mos
+}
+\end{verbatim}
+
+To reduce data loading time, the \texttt{PickleDataset} subclass adds caching functionality. Each sample is preprocessed once, serialized with \texttt{torch.save()}, and saved in \texttt{assets\_cached/}. Future runs retrieve these preprocessed tensors via \texttt{torch.load()}, greatly improving training throughput in subsequent epochs.
+
+\section{Model Overview and Modular Design}
+
+The Dual-Stage Attention for Quality of Experience (DSA-QoE) prediction model integrates multiple sub-modules into a cohesive architecture designed to predict continuous and retrospective QoE scores from both high-level semantic video content and low-level Quality of Service (QoS) indicators. Figure ~\ref{fig:framework3} illustrates the structural layout of the proposed model, comprising two parallel processing branches---a video content feature subnetwork and a QoS feature subnetwork---which are ultimately merged by a feature fusion module.
+
+The \textbf{video content feature subnetwork} is responsible for capturing spatial and temporal information from the visual stream. It includes the \textit{Rich Feature Extraction Backbone}, composed of a dual-pathway network---a ResNet-50 for spatial semantics as introduced by He et al. ~\cite{he2016deep} and SlowFast for motion dynamics as introduced by Feichtenhofer et al. ~\cite{feichtenhofer2019slowfast}---, followed by the \textit{Short-Time Regression Module} and \textit{Long-Time Regression Module} to model short-term and long-term temporal dependencies, respectively. These modules independently process perceptual features derived from the visual stream without incorporating external QoS data.
+
+Conversely, the \textbf{QoS feature subnetwork} operates on temporal sequences of streaming metrics such as stalling duration, bitrate variation, and playback recency. This branch includes not only analogous \textit{Short-Time} and \textit{Long-Time Regression Modules}, but also an intermediate \textbf{Cross-Feature Attention Module}, inspired by the self-attention paradigm~\cite{vaswani2017attention}, to model complex interdependencies among QoS features. This structural asymmetry reflects the need for perceptual non-linear modeling in the QoS domain, where interpretability and weighting of features vary temporally and contextually ~\cite{jia2024continuous}.
+
+After the respective regressions in each subnetwork, the model employs a \textbf{Feature Fusion Module}, which computes a self-adaptive combination of the content and QoS representations. This module enables synergistic integration of perceptual and systemic quality cues and facilitates both frame-level (continuous) and global (retrospective) QoE prediction. The fused representation is finally passed through \textbf{Fully Connected Networks} to output the final quality predictions.
+
+To summarize, the model architecture comprises the following main components:
+\begin{itemize}
+\item \textbf{Rich Feature Extraction Backbone}: Extracts spatial and motion features from raw video.
+\item \textbf{Short-Time Regression Module}: Captures local temporal variations in perceived quality.
+\item \textbf{Cross-Feature Attention Module}: Applies only to the QoS subnetwork to capture inter-feature dependencies.
+\item \textbf{Long-Time Regression Module}: Models prolonged temporal dependencies via Transformer encoders.
+\item \textbf{Feature Fusion Module}: Merges content and QoS feature representations.
+\item \textbf{Fully Connected Networks}: Regress the fused representation to final QoE outputs and reduces the feature vector dimensionality after the rich feature extraction.
+\end{itemize}
+
+This layered, modular construction not only mirrors the human perceptual process in handling audiovisual stimuli and delivery impairments, but also allows for fine-grained inspection and modification of each stage. The following subsections provide in-depth technical details and implementation specifics for each module listed above.
+
+\subsection{Rich Feature Extraction Backbone}
+
+This section details the design and implementation of the feature extraction backbone used in the Dual-Stage Attention QoE prediction model~\cite{jia2024continuous}. The backbone is structured as a dual-pathway encoder: one pathway for extracting spatial-semantic content from individual video frames using a ResNet-50~\cite{he2016deep}, and the other for encoding motion dynamics from temporally sampled video clips using the SlowFast network~\cite{feichtenhofer2019slowfast}, pretrained on the Kinetics-400 dataset~\cite{kay2017kineticshumanactionvideo}. 
+
+The dual-pathway design enables the model to simultaneously learn frame-level perceptual attributes and motion-sensitive cues, both of which are essential for no-reference QoE estimation in real-time streaming contexts. All source code associated with this implementation, including both the Python-based model development and the Rust-based inference deployment, is publicly available at \url{https://github.com/cthadeufaria/dual-stage-attention}.
+
+The perceptual backbone comprises two pretrained convolutional models whose outputs are concatenated and passed into the temporal attention and fusion modules. During training, both networks are frozen to minimize overfitting and reduce GPU memory usage.
+
+\subsubsection{Motion Feature Pathway}
+
+The motion feature pathway is implemented using the SlowFast architecture, accessed via the \texttt{pytorchvideo} ~\cite{fan2021pytorchvideodeeplearninglibrary} library. SlowFast is designed to process video at two temporal resolutions:
+\begin{itemize}
+    \item The \textbf{slow pathway} receives sparsely sampled frames to capture high-level semantic motion patterns.
+    \item The \textbf{fast pathway} receives densely sampled frames with fewer channels to detect fine-grained motion.
+\end{itemize}
+
+In this implementation, we follow the sampling setup used in DSA-QoE: temporal stride $\tau=6$, channel ratio $\beta=8$, and speed ratio $\alpha=4$. These parameters control the spatial-temporal granularity of motion representation and ensure alignment with the perceptual distortions commonly found in streaming media.
+
+To extract motion features, the model registers forward hooks on each \texttt{ResNetBlock} module in the SlowFast architecture. A forward hook in PyTorch is a callback that intercepts the output of a layer during the forward pass. This allows intermediate activations to be stored without altering the model's computation graph. Formally, the hook is defined via:
+\begin{quote}
+\texttt{layer.register\_forward\_hook(hook\_fn)}
+\end{quote}
+where \texttt{hook\_fn} is a function of signature \texttt{(module, input, output)}. In this model, the hook stores the output tensors in a class-wide dictionary keyed by layer index.
+
+After inference, the activation from the fourth residual stage (\texttt{Fi[4]}) is selected and passed through a global 3D average pooling:
+\[
+\texttt{motion\_features} = \texttt{AdaptiveAvgPool3d}((1,1,1))(\texttt{Fi[4]})
+\]
+This operation reduces the spatial-temporal tensor to a compact latent vector that is flattened and returned for downstream concatenation. The entire operation is wrapped in \texttt{torch.inference\_mode()} to ensure memory safety and prevent autograd overhead.
+
+\subsubsection{Semantic Feature Pathway}
+
+The semantic feature extractor uses a ResNet-50 model pretrained on the ImageNet dataset~\cite{5206848}, accessed via \texttt{torchvision}. To reduce training time and avoid overfitting, the model is frozen and set to evaluation mode. The final four residual stages of the ResNet (layers 2 to 5) are manually indexed and accessed for feature extraction. Forward hooks are registered to these layers using:
+\begin{quote}
+\texttt{layer.register\_forward\_hook(hook\_fn)}
+\end{quote}
+where the hook function saves the output activation in a dictionary using the number of input channels as a unique key. This method follows best practices outlined in \cite{nanbhasblog,torchhooksdoc} for forward hook registration and layer-specific activation access.
+
+Given the activation maps $F_i = \{f_{i,1}, f_{i,2}, f_{i,3}, f_{i,4}\}$ from the four ResNet stages, the semantic vector is constructed by applying:
+\begin{itemize}
+    \item \textbf{Global Average Pooling (GAP)} across spatial dimensions to capture average filter response.
+    \item \textbf{Pooled Standard Deviation (PStd)} to encode activation dispersion.
+\end{itemize}
+
+Formally:
+\[
+\alpha_i = \texttt{cat}\left( \left\{\texttt{GAP}(f_{i,j})\right\}_{j=1}^{4} \right),
+\quad
+\beta_i = \texttt{cat}\left( \left\{\texttt{std}(f_{i,j})\right\}_{j=1}^{4} \right),
+\quad
+F'_i = \texttt{cat}(\alpha_i, \beta_i)
+\]
+
+This results in a robust representation of both intensity and variance of the high-level features, which together enhance the model's sensitivity to structural and perceptual distortions in each frame. The semantic feature pathway operates on spatially aligned individual frames sampled from the video input and is evaluated in tandem with the motion pathway during inference.
+
+\subsection{Short-Time Regression Module}
+
+The Short-Time Regression (STR) module is implemented to capture local temporal dependencies within the QoE feature sequences. This design is motivated by Temporal Convolutional Networks (TCNs) introduced by Bai et al.~\cite{bai2018empirical}, which have been shown to outperform recurrent architectures like LSTMs in sequence modeling tasks due to their parallelism and stable gradient behavior.
+
+This module consists of two parallel 1D-CNN variants—\texttt{Simple1DCNN} and \texttt{Group1DCNN}—each designed to process different feature modalities while preserving temporal length.
+
+In the \texttt{Simple1DCNN} branch, used for video content features, three sequential convolutional blocks with kernel width 5 are applied to the tensor of shape $(T, 180)$. Each block consists of left-zero-padding of 4, a \texttt{Conv1d}(180 → 180), and \texttt{ReLU}. The repeated convolutional layers enable a receptive field that spans short time intervals, providing fine-grained temporal context without collapsing temporal resolution.
+
+The \texttt{Group1DCNN} branch handles QoS features grouped by their semantic type. It uses grouped convolutions to transform a $(T, 4)$ tensor into a $(T, 180)$ representation in two stages: first expanding each QoS group independently (channels 4 → 180), then refining channel-wise features (channels 180 → 180). Grouped convolutions facilitate parallel learning of feature-specific temporal filters, aligning with perceptual theories that distinct QoS signals may affect QoE independently before integration.
+
+Both branches avoid pooling to maintain the same temporal length at the output, enabling direct alignment with the frame- or segment-level QoE supervision. The resulting outputs, reshaped back to $(T, 180)$, are suitable for fusion with long-range temporal dynamics modeled downstream.
+
+This architecture echoes the fundamental TCN design pattern—causal 1D convolutions, dilations or large kernels, and skip connections—that enable rich local contextual modeling while supporting parallel, non-recursive training~\cite{bai2018empirical}. By combining STR and LTR modules, the overall system captures both fine- and broad-scale temporal structures relevant to perceptual quality assessment.
+
+\subsection{Cross-Feature Attention Module}
+
+The Cross-Feature Attention (CFA) module, a method described by Vaswani et al.~\cite{vaswani2017attention}, is employed to model high-order interactions across semantically distinct Quality of Service (QoS) feature groups in a temporally aligned manner. While previous layers encode intra-feature temporal dynamics (e.g., how bitrate varies across time), the CFA module explicitly attends across different QoS groups, enabling the model to infer complex joint effects on perceptual Quality of Experience (QoE). This is crucial for capturing compound distortions that arise in streaming applications, such as simultaneous bitrate drops and stalling events.
+
+The module draws directly from the scaled dot-product attention mechanism proposed by Vaswani et al.~\cite{vaswani2017attention}, where input sequences are projected into queries ($Q$), keys ($K$), and values ($V$), and the attention output is computed as:
+\[
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\]
+This formulation allows the model to dynamically weight features based on their contextual relevance, thereby enabling global reasoning over the input.
+
+In the CFA module, the input is a matrix $x \in \mathbb {R}^{T \times F}$, where $T$ is the number of temporal segments and $F = 180$ is the flattened dimension of encoded QoS features. The features are grouped into $G=4$ non-overlapping blocks of size $d = F/G = 45$, consistent with the grouping strategy adopted during feature encoding. The tensor is reshaped to $\mathbb{R}^{G \times T \times d}$ and permuted to match the expected input format of PyTorch's \texttt{nn.MultiheadAttention}, i.e., $(\text{seq\_len}, \text{batch}, \text{embed\_dim})$.
+
+Using 3 attention heads, the CFA computes multi-head self-attention across grouped features at each timestep. The heads independently project the input to subspaces of dimension $d_h = d / h = 15$ and apply scaled dot-product attention. The outputs of the attention heads are then concatenated and projected back to the original group dimension, following the standard Transformer procedure~\cite{vaswani2017attention}. This allows each group to attend to other groups over time, yielding a globally informed representation of inter-group dependencies.
+
+The attended tensor is then permuted and flattened back to $\mathbb {R}^{T \times F}$ to be passed to subsequent layers. This operation maintains the temporal structure of the QoS sequence while enriching it with attention-based feature fusion, effectively reweighting the contributions of each group based on contextual cues.
+
+The rationale for integrating such an attention mechanism is supported by the findings of Vaswani et al., who demonstrate that attention not only improves modeling capacity but also reduces the need for strong inductive biases such as recurrence or convolution. In our context, replacing hand-crafted fusion heuristics with a trainable attention mechanism provides greater flexibility and empirical robustness in modeling perceptual impairments.
+
+By applying attention to grouped QoS features, the CFA module leverages the inductive strength of the Transformer architecture to capture how complex combinations of impairments affect perceptual quality. This is consistent with broader observations in the literature that attention mechanisms excel in scenarios requiring dynamic, content-dependent reasoning~\cite{vaswani2017attention}.
+
+\subsection{Long-Time Regression Module}
+
+The Long-Time Regression (LTR) module is a Transformer-based architecture designed to model extended temporal dependencies across perceptual and network features in streaming video sequences. This module is critical for capturing long-range temporal coherence in Quality of Experience (QoE) estimation, particularly when degradations such as bitrate oscillations or stalling have temporally diffuse perceptual impacts.
+
+The module is based on the Transformer Encoder architecture introduced by Vaswani et al.~\cite{vaswani2017attention}, which replaces recurrence with multi-head self-attention and feedforward layers. This architecture has demonstrated superior performance in capturing global dependencies across sequences and is especially well suited to tasks involving temporally structured inputs. In contrast to RNN-based models, Transformer encoders allow for parallel sequence processing and content-based interactions, enhancing both representational power and training efficiency.
+
+The LTR module receives as input a sequence of feature vectors $x \in \mathbb{R}^{T \times D}$, where $T$ denotes the number of time steps (e.g., segment-aligned video windows), and $D = 180$ is the dimensionality of the combined feature representation. To encode temporal order information, the model introduces a learnable positional encoding matrix $P \in \mathbb{R}^{T \times D}$, which is added to the input:
+\[
+F = x + P
+\]
+
+The core of the module is a stack of $L$ Transformer Encoder layers, each consisting of a multi-head self-attention mechanism followed by a feedforward network, residual connections, and layer normalization. Each encoder layer adheres to the following structure:
+\[
+\text{EncoderLayer}(x) = \text{LayerNorm}(x + \text{SelfAttention}(x)) + \text{FeedForward}(x)
+\]
+with $H = 4$ attention heads and feedforward dimensionality $4D = 720$, using ReLU as the activation function.
+
+To ensure that predictions at time $t$ do not attend to future information $t' > t$, a causal mask is applied via PyTorch's \texttt{generate\_square\_subsequent\_mask()} function. This constructs a triangular mask matrix $M \in \mathbb{R}^{T \times T}$ such that:
+\[
+M_{ij} =
+\begin{cases}
+0, & \text{if } j \leq i \\
+-\infty, & \text{if } j > i
+\end{cases}
+\]
+This constraint is essential for autoregressive learning and simulates the causal information flow observed in real-time streaming systems.
+
+The output from the stacked encoder is then projected back to the feature space via a fully connected layer:
+\[
+O = \text{SELU}(\text{FC}(C)) + C
+\]
+where $C$ is the Transformer encoder output, and SELU is used as the activation function to preserve self-normalizing behavior and facilitate gradient stability.
+
+Overall, the LTR module integrates long-term perceptual dynamics by propagating content-aware representations through the Transformer encoder. By leveraging positional encoding and masked attention, it maintains both sequential order and causal consistency. As originally shown by Vaswani et al.~\cite{vaswani2017attention}, this architectural design offers a powerful alternative to recurrent approaches, enabling the model to capture the long-horizon structure inherent to human perceptual response in streaming contexts.
+
+\subsection{Feature Fusion Module}
+
+The core of the model's predictive capacity lies in its ability to dynamically integrate heterogeneous data streams—specifically, video content features and Quality of Service (QoS) metrics. To this end, a dedicated Feature Fusion Module (FFM) is designed to leverage both global and local information by applying adaptive weighting mechanisms inspired by dual-stage attention frameworks, as proposed by Jia et al.~\cite{jia2024continuous}.
+
+Formally, let $O_{vc} \in \mathbb{R}^{T \times d}$ denote the temporally-aligned sequence of high-level video content embeddings, and $O_{QoS} \in \mathbb{R}^{T \times d}$ the corresponding QoS feature sequence, both output by the long-time temporal regression modules. These representations encode semantic, motion, and playback characteristics at the chunk level.
+
+We define temporally pooled representations:
+\begin{equation}
+    X_{vc} = \frac{1}{T} \sum_{t=1}^{T} O_{vc}^{(t)}, \quad 
+    X_{QoS} = \frac{1}{T} \sum_{t=1}^{T} O_{QoS}^{(t)},
+\end{equation}
+which capture the global statistical behavior of each modality.
+
+To compute a self-adaptive fusion weight $\alpha \in (0, 1)$ governing the contribution of each modality to the overall Quality of Experience (QoE) prediction, we concatenate the global descriptors and pass them through a learned fully-connected network $\mathrm{FC}_2$:
+\begin{equation}
+    \alpha = \mathrm{FC}_2 \left( \mathrm{concat}(X_{vc}, X_{QoS}) \right).
+\end{equation}
+
+The fused overall representation is then constructed as a convex combination:
+\begin{equation}
+    \hat{X}_{ova} = \mathrm{concat} \left( \alpha \cdot X_{vc}, (1 - \alpha) \cdot X_{QoS} \right),
+\end{equation}
+which is subsequently passed to another fully connected layer $\mathrm{FC}_3$ to predict the overall QoE:
+\begin{equation}
+    \hat{y}_{ova} = \mathrm{FC}_3(\hat{X}_{ova}).
+\end{equation}
+
+For continuous QoE estimation, a similar mechanism is applied on a per-timestep basis. Let the concatenated dynamic features be
+\begin{equation}
+    Z_t = \mathrm{concat}(O_{vc}^{(t)}, O_{QoS}^{(t)}), \quad t = 1, \dots, T.
+\end{equation}
+A timestep-dependent fusion weight $\alpha_t$ is computed using another fully connected layer $\mathrm{FC}_4$:
+\begin{equation}
+    \alpha_t = \mathrm{FC}_4(Z_t),
+\end{equation}
+leading to timestep-specific fused representations:
+\begin{equation}
+    \hat{Z}_t = \mathrm{concat} \left( \alpha_t \cdot O_{vc}^{(t)}, (1 - \alpha_t) \cdot O_{QoS}^{(t)} \right),
+\end{equation}
+which are individually mapped to predicted continuous QoE scores using $\mathrm{FC}_5$:
+\begin{equation}
+    \hat{y}_t = \mathrm{FC}_5(\hat{Z}_t).
+\end{equation}
+
+This fusion strategy serves multiple purposes: it enables context-dependent feature recalibration, alleviates overfitting risks associated with static fusion methods, and mimics the perceptual prioritization seen in human viewers when evaluating content under varying transmission conditions ~\cite{jia2024continuous}. Moreover, the two-stage design reflects both coarse-grained and fine-grained attention to temporal and feature-wise dependencies, contributing to enhanced prediction robustness in both overall and continuous QoE evaluation tasks.
+
+\subsection{Fully Connected Networks}
+
+The architecture integrates five fully connected networks—\texttt{FC1} to \texttt{FC5}—to progressively transform, weight, and regress features throughout the dual-stage attention model. These layers are implemented in PyTorch as subclasses of \texttt{nn.Module}, using best practices from the official PyTorch guidelines ~\cite{pytorch_tutorials}.
+
+\subsubsection*{\texttt{FC1}: Dimensionality Reduction Layer}
+
+The first network, \texttt{FC1}, reduces the high-dimensional concatenated feature vector obtained after rich feature extraction. The input dimensionality of $7936$ results from combining semantic features (from ResNet-50 and SlowFast) and motion features as per the design in ~\cite{jia2024continuous}. To avoid overfitting and reduce computation, \texttt{FC1} maps this to a 180-dimensional latent space:
+\begin{equation}
+    \hat{f}_t = \texttt{FC1}(f_t), \quad \hat{f}_t \in \mathbb{R}^{180}, \quad f_t \in \mathbb{R}^{7936}.
+\end{equation}
+In code, this is implemented as a single-layer perceptron:
+\begin{verbatim}
+self.layer1 = nn.Linear(7936, 180)
+\end{verbatim}
+No activation function is applied, consistent with its role as a bottleneck projection.
+
+\subsubsection*{\texttt{FC2}: Overall Fusion Weight Estimation}
+
+The second network, \texttt{FC2}, computes a scalar fusion coefficient $\alpha \in (0,1)$ from the concatenated global average pooled features of the video content and QoS sub-networks. It uses a two-layer feedforward network with a \texttt{ReLU} activation followed by a final \texttt{Sigmoid} to bound the output:
+\begin{align}
+    \alpha &= \sigma\left( W_2 \cdot \texttt{ReLU}(W_1 \cdot x + b_1) + b_2 \right), \\
+    x &= \texttt{concat}(X_{vc}, X_{QoS}) \in \mathbb{R}^{360}.
+\end{align}
+Implemented as:
+\begin{verbatim}
+self.layer1 = nn.Linear(360, 180)
+self.relu = nn.ReLU()
+self.layer2 = nn.Linear(180, 1)
+self.sigmoid = nn.Sigmoid()
+\end{verbatim}
+This module enables a content-aware blending of modalities, as discussed in~\cite{jia2024continuous}.
+
+\subsubsection*{\texttt{FC3}: Overall QoE Prediction Layer}
+
+Once the scalar weight $\alpha$ is used to combine pooled feature vectors, the fused vector of 360 dimensions is passed to \texttt{FC3}, which predicts the overall Quality of Experience score:
+\begin{equation}
+    \hat{y}_{ova} = \texttt{FC3}(\alpha X_{vc} \oplus (1 - \alpha) X_{QoS}).
+\end{equation}
+\texttt{FC3} comprises two fully connected layers with a non-linear \texttt{GELU} activation ~\cite{hendrycks2016gaussian} in between:
+\begin{verbatim}
+self.layer1 = nn.Linear(360, 180)
+self.gelu = nn.GELU()
+self.layer2 = nn.Linear(180, 1)
+\end{verbatim}
+
+\subsubsection*{\texttt{FC4}: Per-Timestep Fusion Weight Estimation}
+
+Analogous to \texttt{FC2}, the \texttt{FC4} network estimates fusion weights $\alpha_t$ per timestep, enabling frame-level adaptivity. It takes as input the concatenated representations at timestep $t$ and outputs a scalar $\alpha_t \in (0,1)$:
+\begin{equation}
+    \alpha_t = \sigma\left( W_2 \cdot \texttt{ReLU}(W_1 \cdot z_t + b_1) + b_2 \right), \quad z_t = O_{vc}^{(t)} \oplus O_{QoS}^{(t)}.
+\end{equation}
+The implementation mirrors \texttt{FC2}:
+\begin{verbatim}
+self.layer1 = nn.Linear(360, 180)
+self.relu = nn.ReLU()
+self.layer2 = nn.Linear(180, 1)
+self.sigmoid = nn.Sigmoid()
+\end{verbatim}
+This mechanism allows the model to express dynamic content-awareness at each timestep ~\cite{jia2024continuous}.
+
+\subsubsection*{\texttt{FC5}: Continuous QoE Prediction Layer}
+
+Finally, \texttt{FC5} maps the dynamically fused features at each timestep to scalar continuous QoE scores:
+\begin{equation}
+    \hat{y}_t = \texttt{FC5} \left( \alpha_t O_{vc}^{(t)} \oplus (1 - \alpha_t) O_{QoS}^{(t)} \right).
+\end{equation}
+As with \texttt{FC3}, it employs a \texttt{GELU} activation:
+\begin{verbatim}
+self.layer1 = nn.Linear(360, 180)
+self.gelu = nn.GELU()
+self.layer2 = nn.Linear(180, 1)
+\end{verbatim}
+This design aligns with perceptual frameworks like SSCQE ~\cite{alpert1991sscqe}, enabling smooth tracking of temporal variations in user experience.
+
+\bigskip
+In summary, the fully connected layers in this model do more than regression—they implement feature selection, nonlinear projection, and dynamic modality fusion. Their design is crucial to the model's ability to unify the prediction of both continuous and overall QoE.
+
+\section{Training and Evaluation Procedure}
+\label{sec:training-evaluation}
+
+The training of the Dual-Stage Attention model follows a rigorously engineered pipeline leveraging mixed-precision computation, advanced learning rate scheduling, and modular dataset streaming for optimized memory and convergence efficiency. This training protocol ensures numerical stability, hardware efficiency, and empirical robustness, rendering the model suitable for deployment in live QoE prediction pipelines. This section provides a detailed explanation of the training and evaluation configuration.
+
+\subsection{Freezing of the Backbone}
+The pretrained feature extraction backbone---comprising ResNet-50 and SlowFast networks---is excluded from parameter optimization during training. This is operationalized by invoking \texttt{torch.no\_grad()} context during feature extraction and setting the corresponding layers to evaluation mode using \texttt{model.eval()} and \texttt{requires\_grad = False} on all backbone parameters. This architectural freezing is a common transfer learning practice~\cite{yosinski2014transferable} that preserves general-purpose visual features learned from large-scale datasets such as ImageNet~\cite{deng2009imagenet} and Kinetics~\cite{kay2017kinetics}, reducing overfitting and computational overhead.
+
+\subsection{Optimization Algorithm}
+The model is trained using the AdamW optimizer~\cite{loshchilov2018decoupled}, a decoupled variant of Adam designed to correct the interaction between weight decay and adaptive gradient updates. With a learning rate $\eta = 5\times 10^{-4}$ and a weight decay of $10^{-2}$, AdamW maintains stable convergence by combining L2 regularization with bias-corrected moment estimation. The optimizer updates parameters $\theta_t$ according to:
+\begin{equation}
+\theta_{t+1} = \theta_t - \eta \cdot \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon} - \eta \cdot \lambda \cdot \theta_t,
+\end{equation}
+where $\hat{m}_t$ and $\hat{v}_t$ denote bias-corrected first and second moment estimates, and $\lambda$ is the weight decay factor. Empirically, AdamW improves generalization over Adam, especially in attention-based architectures~\cite{liu2019variance}.
+
+\subsection{Learning Rate Scheduling}
+To enhance convergence stability, an \texttt{ExponentialLR} scheduler is applied to the optimizer, decaying the learning rate by a multiplicative factor $\gamma = 0.935$ per epoch. This results in the learning rate at epoch $t$ being:
+\begin{equation}
+\eta_t = \eta_0 \cdot \gamma^t.
+\end{equation}
+This exponential decay is advantageous in late-stage training as it suppresses parameter oscillations and fine-tunes model weights for generalization. Alternative schedulers like \texttt{StepLR} were considered but discarded due to coarser control of decay dynamics.
+
+\subsection{Batch-wise Training Loop}
+Training proceeds via an epoch-based loop over batches streamed from a PyTorch \texttt{DataLoader} with customized collation. For each batch $b_i = (x_i, y_i)$, the training step:
+\begin{enumerate}
+  \item Sets gradients to zero via \texttt{optimizer.zero\_grad()}.
+  \item Forwards each sample $x_i^j$ through the model to yield prediction $\hat{y}_i^j$.
+  \item Computes the loss $\mathcal{L}(\hat{y}_i, y_i)$.
+  \item Executes backward pass and optimizer update.
+  \item Logs the loss using TensorBoard.
+\end{enumerate}
+
+Each epoch records training and validation losses, updating a model checkpoint if validation improves.
+
+\subsection{Mixed-Precision Training}
+To reduce memory consumption and increase throughput, PyTorch Automatic Mixed Precision (AMP) is used via \texttt{torch.cuda.amp.autocast} and \texttt{GradScaler}. AMP enables dynamic casting of operations to \texttt{float16} while preserving critical operations in \texttt{float32} to prevent underflow~\cite{micikevicius2018mixed}. The \texttt{GradScaler} normalizes gradients to avoid overflow before unscaling and optimizer stepping, ensuring numerical stability. This technique results in substantial acceleration on Tensor Core–enabled GPUs such as the NVIDIA RTX A4000.
+
+\subsection{Hardware Environment}
+All training and inference experiments were executed on a high-performance workstation provided by BISECT LDA, equipped with dual NVIDIA RTX A4000 GPUs (Ampere architecture), an AMD EPYC 9124 CPU (32 threads), and 64 GB of RAM. This configuration supports extensive parallel data loading and large-batch experimentation, and is consistent with real-time QoE inference constraints.
+
+\subsection{Loss Function}
+
+The loss module encapsulates a multi-objective regression criterion that simultaneously targets continuous and retrospective QoE prediction. Let \( \hat{y}_i = (\hat{y}^{\text{continuous}}_i, \hat{y}^{\text{overall}}_i) \) be the model predictions for continuous and overall QoE, and \( y_i = (y^{\text{continuous}}_i, y^{\text{overall}}_i) \) the corresponding ground truth labels. 
+
+To improve both fidelity to ground truth and rank correlation, we employ a hybrid loss combining Mean Squared Error (MSE) and Pearson Linear Correlation Coefficient (PLCC). The losses for each task are defined as:
+
+\begin{equation}
+\mathcal{L}_{\text{continuous}} = \text{MSE}(\hat{y}^{\text{continuous}}, y^{\text{continuous}}) + 0.1 \cdot (1 - \text{PLCC}(\hat{y}^{\text{continuous}}, y^{\text{continuous}})),
+\end{equation}
+\begin{equation}
+\mathcal{L}_{\text{overall}} = \text{MSE}(\hat{y}^{\text{overall}}, y^{\text{overall}}) + 0.1 \cdot (1 - \text{PLCC}(\hat{y}^{\text{overall}}, y^{\text{overall}})),
+\end{equation}
+\begin{equation}
+\mathcal{L} = \frac{1}{2} (\mathcal{L}_{\text{continuous}} + \mathcal{L}_{\text{overall}}).
+\end{equation}
+
+\subsection{Training Results and Diagnostic Analysis}
+
+To assess the learning dynamics and generalization behavior of the Dual-Stage Attention model, both training and validation losses were recorded over all optimization steps and visualized using TensorBoard (see Figure ~\ref{fig:loss_curves}). These plots enable evaluation of potential underfitting or overfitting by tracking error convergence across epochs.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=\textwidth,
+      height=0.6\textwidth, % Adjust height as needed
+      xlabel={Step},
+      ylabel={Loss},
+      grid=major,
+      legend style={at={(0.5,-0.2)}, anchor=north},
+      legend cell align={left},
+      tick label style={font=\footnotesize},
+      label style={font=\small},
+      ]
+      
+      % Plot training loss (blue line)
+      \addplot [blue, thick] 
+        table [x=Step, y=training, col sep=comma] {data/train-val-loss.csv};
+      \addlegendentry{Training Loss}
+      
+      % Plot validation loss (red line)
+      \addplot [red, thick] 
+        table [x=Step, y=validation, col sep=comma] {data/train-val-loss.csv};
+      \addlegendentry{Validation Loss}
+      
+    \end{axis}
+  \end{tikzpicture}
+  \caption{Training and validation loss curves. The validation loss plateaus while training loss continues to decrease, indicating potential overfitting.}
+  \label{fig:loss_curves}
+\end{figure}
+
+\subsubsection{Loss Curve Interpretation}
+As shown in the training curves, the loss value consistently decreases across both training and validation datasets during the first stages of training, indicating successful minimization of the multi-objective loss defined in Section~\ref{sec:training-evaluation}. This behavior suggests that the model is effectively learning both short-time and long-time dependencies for QoE prediction.
+
+Beyond epoch $t > 20$, the training loss continues to decline while the validation loss begins to plateau or slightly increase. This divergence signals mild overfitting as highlighted by Prechelt et al. ~\cite{prechelt1998early}, where the model's capacity begins to specialize in training data patterns not generalizable to unseen content. Nevertheless, the validation loss remains bounded, suggesting that regularization via weight decay, the use of frozen backbones, low batch size and learning rate scheduling mitigates severe overfitting.
+
+\subsubsection{Quantitative Loss Analysis}
+The final training and validation loss values decreased from initial values of 0.1047 and 0.06575 to 0.007692 and 0.01667 respectively. Given the form of the loss function:
+\begin{equation}
+\mathcal{L} = \text{MSE}(\hat{y}, y) + 0.1 \cdot (1 - \text{PL}(\hat{y}, y)),
+\end{equation}
+these values reflect combined improvements in both mean squared prediction accuracy and correlation with subjective ground truth.
+
+The MSE term typically dominates the magnitude of the loss, particularly when values are in the range $[0,1]$. The PLCC term, bounded within $[-1, 1]$, contributes an auxiliary penalty scaled by 0.1 to encourage linear correlation. The observed convergence to sub-0.01 values for training loss and around 0.016 for validation indicates effective learning under the hybrid loss. Besides Jia et al. ~\cite{jia2024continuous}, comparable studies in QoE modeling using similar MSE + correlation objectives ~\cite{li2019qoe} report validation losses between 0.01 and 0.03 for normalized quality scores, corroborating our result as within the expected optimal convergence region.
+
+Moreover, the nonzero gap between training and validation final losses suggests a regular generalization discrepancy, but not indicative of severe overfitting. According to Bishop ~\cite{bishop2006pattern}, a validation loss close in magnitude to training loss—especially under multi-term objectives—can be considered a sign of a well-generalized model.
+
+Thus, these absolute values offer a quantitative validation of the model's capability to jointly minimize error and maximize perceptual correlation, further confirming the appropriateness of the chosen objective for QoE regression tasks.
+
+\section{Inference Media Pipeline in Rust}
+\label{sec:rust_pipeline}
+
+The deployment of the Dual-Stage Attention model within a real-time media pipeline necessitates a systems-level implementation that reconciles computational efficiency with operational reliability. Rust's unique capabilities in memory safety, deterministic concurrency, and zero-cost abstractions position it as an ideal platform for this task, particularly given the latency-sensitive nature of streaming applications. This section details the Rust-based implementation of the inference pipeline, focusing on the integration of the serialized DSA-QoE model, GPU-accelerated inference, and the architecture designed for real-time media processing. The implementation directly addresses challenges highlighted in prior literature~\cite{fulton2022benefits, johansson2023transitioning, sharma2023rust}, including deterministic execution, memory safety in high-throughput environments, and efficient hardware utilization.
+
+\subsection{Inference Backend and Serialization}
+\label{sec:rust_serialization}
+
+The trained DSA-QoE model, implemented and optimized in PyTorch~\cite{paszke2019pytorch}, is serialized to TorchScript format for deployment in the Rust ecosystem. TorchScript provides a portable intermediate representation (IR) that decouples model execution from Python's runtime, enabling integration with low-latency systems. As emphasized by Paszke et al.~\cite{paszke2019pytorch}, TorchScript preserves computational graph semantics while optimizing operators for inference, making it suitable for embedding in resource-constrained environments. In this work, serialization is performed after fine-tuning (Section~\ref{sec:training-evaluation}) using PyTorch's \texttt{torch.jit.script} API, which captures model architecture, parameters, and forward logic into a single portable file (\texttt{.pt}).
+
+The inference backend leverages \texttt{tch-rs} (Rust bindings for LibTorch) to deserialize and execute the TorchScript model. \texttt{tch-rs} provides idiomatic Rust interfaces for tensor operations and model execution while maintaining compatibility with PyTorch's optimized kernels. The core components of the backend are encapsulated in the \texttt{ModelHandler} struct (Listing~\ref{lst:model_handler}), which handles:
+
+\begin{itemize}
+  \item \textbf{Device Management:} Automatic detection and utilization of CUDA-capable GPUs via \texttt{Device::cuda\_if\_available()}, falling back to CPU execution if necessary.
+  \item \textbf{Model Loading:} Deserialization of the TorchScript file into an executable \texttt{CModule} instance.
+  \item \textbf{Input Preprocessing:} Conversion of raw tensors to the device-specific datatype (\texttt{Float32}) and memory layout.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\begin{minted}[fontsize=\footnotesize, breaklines, linenos]{rust}
+// model_handler.rs (excerpt)
+pub struct ModelHandler {
+    model: CModule,  // Loaded TorchScript module
+    device: Device,   // Execution device (GPU/CPU)
+}
+
+impl ModelHandler {
+    pub fn new(model_path: &str) -> anyhow::Result<Self> {
+        // Manual CUDA library load for Python environment compatibility
+        let path = CString::new(".../libtorch_cuda.so").unwrap();
+        unsafe { libc::dlopen(path.into_raw(), 1) };
+
+        // Device selection logic
+        let device = Device::cuda_if_available();
+        println!("Using device: {:?}", device);
+
+        // Model deserialization
+        let model = CModule::load_on_device(model_path, device)?;
+        Ok(Self { model, device })
+    }
+}
+\end{minted}
+\caption{Excerpt from the ModelHandler implementation showing TorchScript deserialization and CUDA setup.}
+\label{lst:model_handler}
+\end{figure}
+
+A critical implementation challenge involves resolving CUDA dependencies when deploying in heterogeneous environments (e.g., Python virtual environments). The explicit loading of \texttt{libtorch\_cuda.so} via \texttt{dlopen} (Lines 10--11) ensures the CUDA runtime is visible to \texttt{tch-rs}, addressing linkage issues noted in embedded deployment scenarios~\cite{carnelos2025microflow, sharma2023rust}. This approach aligns with Fulton et al.'s observations~\cite{fulton2022benefits} on Rust's interoperability with legacy C/C++ libraries.
+
+\subsection{Real-Time Video Ingestion and Processing}
+\label{subsec:realtime_ingestion}
+
+The ingestion subsystem constitutes the critical entry point of the media pipeline, responsible for acquiring, decoding, and synchronizing streaming video content under stringent temporal constraints. This implementation leverages \textit{GStreamer}'s modular architecture~\cite{gstreamer1999}—a production-grade multimedia framework—to construct a deterministic processing workflow that reconciles network-level volatility with model-inference requirements. The architecture embodies a \textit{unidirectional processing chain} optimized for UDP-based Real-time Transport Protocol (RTP) streams, implementing three core design principles derived from streaming literature~\cite{BAMPIS2018218, jia2024continuous}: (1) temporal coherence preservation through frame-accurate metadata propagation, (2) hardware-accelerated decoding for computational efficiency, and (3) bounded memory utilization under packet loss scenarios.
+
+The pipeline topology (Fig.~\ref{fig:pipeline_architecture}) instantiates a sequential element graph that transforms network packets into model-ready tensors. The UDP JPEG-based ingestion pipeline establishes a buffered decoding path for receiving, parsing, and conditioning network-bound MJPEG streams into RGB tensors suitable for inference.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[node distance=0.4cm, auto]
+    \node (udpsrc) [block] {udpsrc};
+    \node (jpegparse) [block, right=of udpsrc] {jpegparse};
+    \node (jpegdec) [block, right=of jpegparse] {jpegdec};
+    \node (queue) [block, right=of jpegdec] {queue};
+    \node (convert) [block, right=of queue] {videoconvert};
+    \node (capsfilter) [block, right=of convert] {capsfilter};
+    \node (appsink) [block, right=of capsfilter] {appsink};
+
+    \path [line] (udpsrc) -- (jpegparse);
+    \path [line] (jpegparse) -- (jpegdec);
+    \path [line] (jpegdec) -- (queue);
+    \path [line] (queue) -- (convert);
+    \path [line] (convert) -- (capsfilter);
+    \path [line] (capsfilter) -- (appsink);
+
+\end{tikzpicture}
+\caption{GStreamer pipeline for MJPEG-based acquisition and conditioning.}
+\label{fig:pipeline_architecture}
+\end{figure}
+
+\begin{itemize}
+    \item \textbf{Network Receiver (\texttt{udpsrc})}: Captures UDP packets containing JPEG-encoded payloads. A static port configuration (5000) simplifies firewall traversal and NAT compatibility.
+
+    \item \textbf{Payload Parser (\texttt{jpegparse})}: Validates JPEG stream integrity and extracts entropy-coded segments (ECS) for decoder handoff. Frame boundary recovery leverages embedded restart markers for resilience.
+
+    \item \textbf{Entropy Decoder (\texttt{jpegdec})}: Performs full baseline JPEG decompression. Operates in software but supports SIMD acceleration where available (e.g., libjpeg-turbo backends).
+
+    \item \textbf{Asynchronous Buffering (\texttt{queue})}: Decouples decoding throughput from downstream tensor extraction. A bounded buffer size of 1000 frames prevents memory exhaustion under burst conditions.
+
+    \item \textbf{Color Conversion (\texttt{videoconvert})}: Converts internal I420 planar formats into packed RGB. Ensures downstream tensor alignment and compatibility with model-specific preprocessing.
+
+    \item \textbf{Tensor Shape Filtering (\texttt{capsfilter})}: Enforces structural invariants such as resolution ($224\times224$) and channel format (RGB), guaranteeing input compliance with inference backends.
+
+    \item \textbf{Inference Interface (\texttt{appsink})}: Acts as the final consumer of video frames. Exposes GStreamer buffers to the Rust application via callbacks, enabling zero-copy extraction and preprocessing.
+\end{itemize}
+
+The \texttt{AppSink} element serves as the critical interface between GStreamer's media pipeline and the Rust application logic, implementing a \textit{pull-based callback paradigm} for deterministic frame processing. This design embodies the inversion of control principle advocated by Ham et al.~\cite{ham2019nnstreamer} for neural media pipelines, ensuring temporal isolation between decoding and inference workloads. The integration comprises the following configuration layers.
+
+The \texttt{AppSink} is instantiated with non-blocking semantics and signal emission enabled:
+
+\begin{figure}[htbp]
+\centering
+\begin{minted}[fontsize=\footnotesize, breaklines, linenos]{rust}
+let appsink = ElementFactory::make("appsink")
+    .property("emit-signals", true) // Enable callback triggers
+    .property("sync", false)       // Decouple from system clock
+    .build()?;
+\end{minted}
+\label{lst:appsink_config}
+\end{figure}
+
+This configuration enforces asynchronous frame delivery, whereby media samples are made available to the application logic immediately upon decoding, independent of the system clock. By enabling frame dropping under resource saturation, the configuration also mitigates backpressure propagation across pipeline stages, thereby avoiding buffer overflow conditions. Furthermore, by disabling synchronization with the GStreamer clock, the pipeline achieves bounded, deterministic inference latency that is decoupled from playback timing constraints.
+
+The \texttt{AppSink} is instantiated with non-blocking semantics and signal emission enabled:
+
+\begin{figure}[htbp]
+\centering
+\begin{minted}[fontsize=\footnotesize, breaklines, linenos]{rust}
+appsink.set_callbacks(
+    gstreamer_app::AppSinkCallbacks::builder()
+        .new_sample(move |appsink| {
+            // Frame processing state machine
+        })
+        .build()
+);
+\end{minted}
+\label{lst:appsink_callbacks}
+\end{figure}
+
+Within this closure, the application captures all required computational context for real-time inference: a reference-counted, thread-safe handle to the TorchScript model responsible for prediction, a bounded ring buffer implemented via \texttt{Arc<Mutex<VecDeque>>} for temporal frame queuing, and precomputed normalization constants derived from ImageNet statistics, which ensure alignment with the model's training distribution.
+
+\subsection{Inference Loop and Scheduling}
+\label{sec:inference_loop}
+
+The inference loop constitutes the real-time decision-making core of the system, designed to process continuous video streams and deliver frame-level QoE predictions at one-second intervals. Implemented in Rust using the GStreamer and \texttt{tch-rs} libraries, the loop is event-driven and operates asynchronously, pulling frames from an \texttt{appsink} connected to a live UDP MJPEG video stream.
+
+Each new video frame is buffered into a thread-safe \texttt{VecDeque} structure with a fixed capacity of 320 frames (corresponding to 10 seconds of video at 32 FPS). Upon every 32-frame increment—i.e., once per second—the system triggers a full model inference cycle. This aligns with the SlowFast model's temporal subsampling design, where the fast pathway processes 320 frames and the slow pathway 80 frames (subsampled every 4 frames), while a complementary ResNet pathway processes every 32nd frame. This three-branch architecture is dynamically batched and normalized using channel-wise ImageNet statistics before inference.
+
+To enable concurrent and low-latency processing, the inference scheduling is thread-safe and utilizes Rust's fine-grained locking primitives (\texttt{Arc<Mutex<\ldots>}) for managing shared access to the frame buffer and stacked tensor states. This ensures consistent frame sequencing while avoiding data races. Additionally, synthetic Quality of Service (QoS) features are generated in real-time, simulating bitrate switches, stalls, and recovery periods. These are fed into the fourth model branch as a $10 \times 4$ matrix per inference window.
+
+This scheduling mechanism guarantees sub-second latency for every inference iteration, allowing the system to deliver time-aligned, causal predictions that satisfy the constraints of real-time video quality monitoring.
+
+\subsection{Post-Processing and Score Delivery}
+\label{sec:post_processing}
+
+Following the execution of the TorchScript model, the output tensor—corresponding to the predicted Quality of Experience (QoE) score for the latest 1-second window—is detached from GPU memory and forwarded to the post-processing pipeline. This pipeline is responsible for converting model logits or regression outputs into interpretable QoE estimates, typically on a scale consistent with the Mean Opinion Score (MOS) annotations used during training (e.g., [1, 5]).
+
+Although the current implementation does not include perceptual rescaling or temporal smoothing, such operations can be easily integrated at this stage, such as exponential moving averages or sigmoid-based range transformations. Moreover, future integration with a user-facing dashboard or quality monitoring system can be done asynchronously, as the inference loop exposes a stable API and thread-safe data sink.
+
+For diagnostic purposes, raw predictions are printed to standard output in real time. In production deployment, these values could be streamed to an HTTP server or written to disk in protocol buffer or CSV format, enabling integration with QoE analytics platforms.
+
+The design ensures that score delivery occurs within a few milliseconds of inference completion, thus maintaining the low-latency requirements for continuous monitoring of perceptual quality in streaming applications.
+

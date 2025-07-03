@@ -1,0 +1,9 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{n}{appsink}\PYG{p}{.}\PYG{n}{set\PYGZus{}callbacks}\PYG{p}{(}
+\PYG{+w}{    }\PYG{n}{gstreamer\PYGZus{}app}::\PYG{n}{AppSinkCallbacks}::\PYG{n}{builder}\PYG{p}{()}
+\PYG{+w}{        }\PYG{p}{.}\PYG{n}{new\PYGZus{}sample}\PYG{p}{(}\PYG{k}{move}\PYG{+w}{ }\PYG{o}{|}\PYG{n}{appsink}\PYG{o}{|}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{            }\PYG{c+c1}{// Frame processing state machine}
+\PYG{+w}{        }\PYG{p}{\PYGZcb{})}
+\PYG{+w}{        }\PYG{p}{.}\PYG{n}{build}\PYG{p}{()}
+\PYG{p}{);}
+\end{Verbatim}
